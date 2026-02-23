@@ -1,0 +1,368 @@
+[
+  {
+    "id": "TC001",
+    "title": "Login and Navigate to Program Builder",
+    "description": "Verifies trainer can log in and access the Program Builder page",
+    "category": "Navigation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to http://localhost:3000"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the Login button"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to http://localhost:3000/trainer/programs"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains '/trainer/programs'"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify program list or empty state is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Create New Program Template",
+    "description": "Verifies trainer can create a new program template",
+    "category": "Program Creation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to http://localhost:3000/trainer/programs"
+      },
+      {
+        "type": "action",
+        "description": "Click button with text containing 'Create' or 'New Program' or plus icon"
+      },
+      {
+        "type": "action",
+        "description": "Wait for modal or dialog to appear"
+      },
+      {
+        "type": "action",
+        "description": "Type 'TestSprite Test Program' into program name field"
+      },
+      {
+        "type": "action",
+        "description": "Type 'Auto-generated test program' into description field"
+      },
+      {
+        "type": "action",
+        "description": "Click submit or create button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify success message or program appears in list"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "View Program Details",
+    "description": "Verifies trainer can view the details of an existing program",
+    "category": "Program Management",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to http://localhost:3000/trainer/programs"
+      },
+      {
+        "type": "action",
+        "description": "Click on first program card or list item"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify program name is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify week and day structure is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Add Section to Program Day",
+    "description": "Verifies trainer can add a section (warmup, main, cooldown) to a program day",
+    "category": "Program Building",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to http://localhost:3000/trainer/programs"
+      },
+      {
+        "type": "action",
+        "description": "Click on first program to view details"
+      },
+      {
+        "type": "action",
+        "description": "Click button to add section (look for 'Add Section' or plus icon near a day)"
+      },
+      {
+        "type": "action",
+        "description": "Wait for section creation modal or dialog"
+      },
+      {
+        "type": "action",
+        "description": "Select section type if dropdown exists (warmup, main, skill, cooldown, custom)"
+      },
+      {
+        "type": "action",
+        "description": "Type 'Test Warmup Section' into section name field"
+      },
+      {
+        "type": "action",
+        "description": "Click save or create button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify section appears in the program day"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Add Exercise to Section",
+    "description": "Verifies trainer can add an exercise to a section with tracking fields",
+    "category": "Exercise Management",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to http://localhost:3000/trainer/programs"
+      },
+      {
+        "type": "action",
+        "description": "Click on first program to view details"
+      },
+      {
+        "type": "action",
+        "description": "Expand a section if needed"
+      },
+      {
+        "type": "action",
+        "description": "Click button to add exercise to section"
+      },
+      {
+        "type": "action",
+        "description": "Wait for exercise picker dialog or modal"
+      },
+      {
+        "type": "action",
+        "description": "Select first available exercise from list"
+      },
+      {
+        "type": "action",
+        "description": "Wait for exercise configuration form"
+      },
+      {
+        "type": "action",
+        "description": "Configure sets/reps or other tracking fields if form is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click save or add button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify exercise appears in the section"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Edit Program Details",
+    "description": "Verifies trainer can edit program name and description",
+    "category": "Program Management",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to http://localhost:3000/trainer/programs"
+      },
+      {
+        "type": "action",
+        "description": "Click on first program card"
+      },
+      {
+        "type": "action",
+        "description": "Click edit button or menu option (look for Edit icon or dropdown)"
+      },
+      {
+        "type": "action",
+        "description": "Wait for edit modal to appear"
+      },
+      {
+        "type": "action",
+        "description": "Clear and type 'Updated Program Name' into name field"
+      },
+      {
+        "type": "action",
+        "description": "Clear and type 'Updated description' into description field"
+      },
+      {
+        "type": "action",
+        "description": "Click save or update button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify program name shows 'Updated Program Name'"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Clone Program",
+    "description": "Verifies trainer can clone an existing program",
+    "category": "Program Management",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to http://localhost:3000/trainer/programs"
+      },
+      {
+        "type": "action",
+        "description": "Click on first program card"
+      },
+      {
+        "type": "action",
+        "description": "Click clone/copy button or find it in dropdown menu"
+      },
+      {
+        "type": "action",
+        "description": "Wait for cloning process to complete"
+      },
+      {
+        "type": "action",
+        "description": "Navigate back to programs list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify cloned program appears with '(Copy)' or similar suffix"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Delete Program",
+    "description": "Verifies trainer can delete a program with confirmation",
+    "category": "Program Management",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to http://localhost:3000/trainer/programs"
+      },
+      {
+        "type": "action",
+        "description": "Create a test program to delete"
+      },
+      {
+        "type": "action",
+        "description": "Click delete button or find it in dropdown menu"
+      },
+      {
+        "type": "action",
+        "description": "Wait for confirmation dialog"
+      },
+      {
+        "type": "action",
+        "description": "Click confirm delete button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify program is removed from list"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Add New Week to Program",
+    "description": "Verifies trainer can add additional weeks to a program",
+    "category": "Program Building",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to http://localhost:3000/trainer/programs"
+      },
+      {
+        "type": "action",
+        "description": "Click on first program to view details"
+      },
+      {
+        "type": "action",
+        "description": "Click button to add new week (look for 'Add Week' or similar)"
+      },
+      {
+        "type": "action",
+        "description": "Wait for new week to be created"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify second week appears in the program structure"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify week selector or tabs show multiple weeks"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Search and Filter Programs",
+    "description": "Verifies trainer can search for programs by name",
+    "category": "Navigation",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to http://localhost:3000/trainer/programs"
+      },
+      {
+        "type": "action",
+        "description": "Locate search input field"
+      },
+      {
+        "type": "action",
+        "description": "Type program name into search field"
+      },
+      {
+        "type": "action",
+        "description": "Wait for filtered results"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify only matching programs are displayed"
+      },
+      {
+        "type": "action",
+        "description": "Clear search field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify all programs are shown again"
+      }
+    ]
+  }
+]

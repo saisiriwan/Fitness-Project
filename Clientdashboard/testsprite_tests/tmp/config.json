@@ -1,0 +1,25 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:5173",
+  "loginUser": "test2@gmail.com",
+  "loginPassword": "292546",
+  "executionArgs": {
+    "projectName": "Clientdashboard",
+    "projectPath": "c:\\src\\Final_project\\Fitness-project\\Clientdashboard",
+    "testIds": [
+      "TC001",
+      "TC002",
+      "TC003",
+      "TC007",
+      "TC008"
+    ],
+    "additionalInstruction": "Tests for Dashboard Schedule and Session Logging features. Ensure tests wait for elements to load. Retry on failure.",
+    "envs": {
+      "API_KEY": "sk-user-NrtMxEDJw9bOdDxZvfaKV0wQMULTdvF73SK1H18SLhZLXUWGUh4YL6pTdbiD_HqR59pjaH1ESINU8hmy64Kt3GyJUQ5PURloSEZUEasWDpnuMPRCxxegjS6SdIBy00Dtf2Y"
+    }
+  },
+  "serverPort": 58900,
+  "proxy": "http://9fdf34af-e39e-4089-b752-c930545b83f4:Ra3rVsrSgCPJIPEBRdljt62fsQacvklP@tun.testsprite.com:8080"
+}

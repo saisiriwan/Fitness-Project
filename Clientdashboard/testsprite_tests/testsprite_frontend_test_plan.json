@@ -1,0 +1,1149 @@
+[
+  {
+    "id": "TC001",
+    "title": "View Today schedule cards and open session details modal",
+    "description": "Verifies that an authenticated user can view Today schedule cards and open a session details modal showing exercises and time.",
+    "category": "Dashboard Schedule",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Today\" tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Schedule cards list\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click a schedule card"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Switch between Today, Upcoming, and Past tabs updates visible schedule cards",
+    "description": "Verifies that switching tabs changes the schedule list and the correct tab content is displayed.",
+    "category": "Dashboard Schedule",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Upcoming\" tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Upcoming schedule cards list\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Past\" tab"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Open session details from Upcoming tab and verify exercises and time are visible",
+    "description": "Verifies that a user can open session details from an Upcoming schedule card and see key session information.",
+    "category": "Dashboard Schedule",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Upcoming\" tab"
+      },
+      {
+        "type": "action",
+        "description": "Click a schedule card"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Session detail modal\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Close session details modal returns to dashboard schedule view",
+    "description": "Verifies that closing the session detail modal returns the user to the dashboard schedule list without leaving the dashboard.",
+    "category": "Dashboard Schedule",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Today\" tab"
+      },
+      {
+        "type": "action",
+        "description": "Click a schedule card"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Close\" button"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Session detail modal displays exercises section and scheduled time",
+    "description": "Verifies that the session detail modal contains an exercises area and a visible time value for the selected session.",
+    "category": "Dashboard Schedule",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Today\" tab"
+      },
+      {
+        "type": "action",
+        "description": "Click a schedule card"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Exercises\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Schedule list shows loading state before cards appear",
+    "description": "Verifies that the dashboard schedule area shows a loading indicator while schedules are being fetched.",
+    "category": "Dashboard Schedule",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Loading spinner\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Wait for \"Schedule cards list\" to appear"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Schedule cards list\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Save valid set values and completion status inside the session modal",
+    "description": "Verifies a trainer can edit reps/weight/RPE, toggle completion, save, and see updated values within the open session modal.",
+    "category": "Session Logging",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a session in the schedule to open the session modal"
+      },
+      {
+        "type": "action",
+        "description": "Expand exercise details"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"10\" into the reps field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"50\" into the weight field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"7\" into the RPE field"
+      },
+      {
+        "type": "action",
+        "description": "Toggle completion status for the set"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"10\" is visible in the reps value area for that set in the session modal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"50\" is visible in the weight value area for that set in the session modal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"7\" is visible in the RPE value area for that set in the session modal"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Save valid set values and see them reflected on the dashboard schedule card",
+    "description": "Verifies saved set edits are persisted and reflected outside the modal on the dashboard schedule card after saving.",
+    "category": "Session Logging",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a session in the schedule to open the session modal"
+      },
+      {
+        "type": "action",
+        "description": "Expand exercise details"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"8\" into the reps field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"40\" into the weight field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"6\" into the RPE field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button"
+      },
+      {
+        "type": "action",
+        "description": "Click the modal close button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated values (\"8\", \"40\", and \"6\") are visible on the corresponding session’s schedule card on /dashboard"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Validation error for non-numeric reps and successful save after correction",
+    "description": "Verifies entering text in reps shows an inline validation error, and correcting it allows a successful save.",
+    "category": "Session Logging",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a session in the schedule to open the session modal"
+      },
+      {
+        "type": "action",
+        "description": "Expand exercise details"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"ten\" into the reps field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"reps\" and text \"invalid\" are visible near the reps field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"10\" into the reps field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"10\" is visible in the reps value area for that set in the session modal"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Toggle completion status persists after saving and reopening the modal",
+    "description": "Verifies set completion toggling is persisted after save by closing and reopening the same session modal.",
+    "category": "Session Logging",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a session in the schedule to open the session modal"
+      },
+      {
+        "type": "action",
+        "description": "Expand exercise details"
+      },
+      {
+        "type": "action",
+        "description": "Toggle completion status for the set"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button"
+      },
+      {
+        "type": "action",
+        "description": "Click the modal close button"
+      },
+      {
+        "type": "action",
+        "description": "Click on the same session in the schedule to open the session modal"
+      },
+      {
+        "type": "action",
+        "description": "Expand exercise details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the set shows as completed in the session modal"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Edit multiple fields then save once (reps, weight, RPE)",
+    "description": "Verifies a user can update multiple set fields in one pass and see all updated values after a single save.",
+    "category": "Session Logging",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a session in the schedule to open the session modal"
+      },
+      {
+        "type": "action",
+        "description": "Expand exercise details"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"5\" into the reps field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"25\" into the weight field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"5\" into the RPE field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"5\" is visible for reps in the session modal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"25\" is visible for weight in the session modal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"5\" is visible for RPE in the session modal"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Save with empty required field shows validation message",
+    "description": "Verifies attempting to save with a missing required value (such as reps) shows a visible validation error and does not silently succeed.",
+    "category": "Session Logging",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a session in the schedule to open the session modal"
+      },
+      {
+        "type": "action",
+        "description": "Expand exercise details"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"\" into the reps field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"reps\" and text \"required\" are visible near the reps field"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Reopen modal after saving and confirm edited numeric values remain",
+    "description": "Verifies saved set values persist by saving, closing, and reopening the session modal and confirming the same numbers are still visible.",
+    "category": "Session Logging",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a session in the schedule to open the session modal"
+      },
+      {
+        "type": "action",
+        "description": "Expand exercise details"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"9\" into the reps field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"45\" into the weight field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"7\" into the RPE field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button"
+      },
+      {
+        "type": "action",
+        "description": "Click the modal close button"
+      },
+      {
+        "type": "action",
+        "description": "Click on the same session in the schedule to open the session modal"
+      },
+      {
+        "type": "action",
+        "description": "Expand exercise details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"9\" is visible for reps in the session modal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"45\" is visible for weight in the session modal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"7\" is visible for RPE in the session modal"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Add a new client from the Clients panel and see it listed",
+    "description": "Verifies a trainer can create a client profile and the new client appears in the Clients panel list.",
+    "category": "Client Management",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Clients\" panel or \"Clients\" section entry point"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Add Client\" button"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Test Client A\" into the Client Name field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Test Client A\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Attempt to add a client with missing required fields and see validation error",
+    "description": "Verifies saving a client with missing required data is blocked and a visible validation message is shown.",
+    "category": "Client Management",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Clients\" panel or \"Clients\" section entry point"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Add Client\" button"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Required\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Add Client\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Fix validation errors and successfully add the client",
+    "description": "Verifies a trainer can correct invalid/missing fields after a failed save and then successfully create the client.",
+    "category": "Client Management",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Clients\" panel or \"Clients\" section entry point"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Add Client\" button"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Required\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Test Client B\" into the Client Name field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Test Client B\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "View progress graph on client profile",
+    "description": "Verifies a trainer can open a client profile and view a visible progress graph on the reports area.",
+    "category": "Reports, Session Summary Card & Notes",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email or username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a client name from the dashboard client list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Progress\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Progress graph\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Progress graph metric detail appears when interacting with a data point",
+    "description": "Verifies progress graph provides a visible metric detail readout when the user interacts with a data point.",
+    "category": "Reports, Session Summary Card & Notes",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email or username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a client name from the dashboard client list"
+      },
+      {
+        "type": "action",
+        "description": "Click on a visible data point on the progress graph"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Date\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC019",
+    "title": "Open past session and view autogenerated Session Summary Card image",
+    "description": "Verifies a trainer can open a past session and see the autogenerated Session Summary Card image.",
+    "category": "Reports, Session Summary Card & Notes",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email or username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a past session item from the dashboard schedule or session list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Session Summary\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Session Summary Card image\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC020",
+    "title": "Share summary from Session Summary Card",
+    "description": "Verifies the Share action is available from the Session Summary Card and shows a share UI confirmation state (without validating external delivery).",
+    "category": "Reports, Session Summary Card & Notes",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email or username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a past session item from the dashboard schedule or session list"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Share\" button on the Session Summary Card"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Share\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC021",
+    "title": "Save post-session notes and verify they appear in session history",
+    "description": "Verifies a trainer can enter post-session notes, save them, and see the saved notes reflected in the session details/history UI.",
+    "category": "Reports, Session Summary Card & Notes",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email or username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a session item to open session details"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Great effort today—focus on controlled tempo next time.\" into the post-session notes field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save Notes\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Great effort today—focus on controlled tempo next time.\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC022",
+    "title": "Attempt to save empty notes shows validation or no-change behavior",
+    "description": "Verifies the UI handles an attempt to save blank post-session notes by showing a visible message or preventing save.",
+    "category": "Reports, Session Summary Card & Notes",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email or username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a session item to open session details"
+      },
+      {
+        "type": "action",
+        "description": "Click into the post-session notes field"
+      },
+      {
+        "type": "action",
+        "description": "Press \"Enter\""
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save Notes\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Notes\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC023",
+    "title": "Client profile empty-state when no historical data is present",
+    "description": "Verifies an empty-state message and guidance are shown when a client has no historical progress data, and that the Create Session call-to-action is available.",
+    "category": "Reports, Session Summary Card & Notes",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email or username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on a client that appears to have no sessions or history"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"No data\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Create Session\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Create Session\" button"
+      }
+    ]
+  }
+]

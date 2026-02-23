@@ -1,0 +1,76 @@
+version: "2"
+type: frontend
+tech_stack:
+  - TypeScript
+  - React
+  - Vite
+  - TailwindCSS
+  - Radix UI
+  - Lucide React
+  - Axios
+routes:
+  - path: /
+    file: src/app/App.tsx
+    auth_required: false
+    description: Root route, redirects to Login or Dashboard based on auth
+  - path: /login
+    file: src/app/components/LoginPage.tsx
+    auth_required: false
+    description: User login page
+  - path: /signup
+    file: src/app/components/SignUpPage.tsx
+    auth_required: false
+    description: User sign up page
+  - path: /dashboard
+    file: src/app/components/DashboardOverview.tsx
+    auth_required: true
+    description: Main dashboard overview with schedule and progress
+features:
+  - name: Authentication
+    description: Login, Signup, and Logout functionality
+    files:
+      - src/app/components/LoginPage.tsx
+      - src/app/components/SignUpPage.tsx
+      - src/context/AuthContext.tsx
+    entry_route: /login
+    user_interactions:
+      - Enter email and password
+      - Click Login/Signup
+      - Handle auth tokens
+    api_calls:
+      - method: POST
+        endpoint: /auth/login
+      - method: POST
+        endpoint: /auth/signup
+    auth_required: false
+  - name: Dashboard Schedule
+    description: View daily, upcoming, and past schedules
+    files:
+      - src/app/components/DashboardOverview.tsx
+      - src/app/components/Schedule.tsx
+    entry_route: /dashboard
+    user_interactions:
+      - Switch tabs (Today, Upcoming, Past)
+      - View schedule cards
+      - Open session details
+    api_calls:
+      - method: GET
+        endpoint: /schedules
+      - method: GET
+        endpoint: /sessions/:id
+    auth_required: true
+  - name: Session Logging
+    description: Log exercise sets (reps, weight, RPE)
+    files:
+      - src/app/components/DashboardOverview.tsx
+    entry_route: /dashboard
+    user_interactions:
+      - Click on session to open modal
+      - Expand exercise details
+      - Input reps, weight, RPE
+      - Toggle completion status
+    api_calls:
+      - method: PATCH
+        endpoint: /exercises/:id/sets/:number
+    auth_required: true
+known_limitations: []

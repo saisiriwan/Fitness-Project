@@ -1,0 +1,20 @@
+# Dependency folders
+node_modules/
+backend/node_modules/
+FitnessManagementDashboard-trainer/node_modules/
+Clientdashboard/node_modules/
+
+# Build outputs
+dist/
+build/
+FitnessManagementDashboard-trainer/dist/
+
+# Env & Secrets
+.env
+*.db
+.agent/
+
+# Temp debug files
+*.py
+*.bat
+!USER_MANUAL.md

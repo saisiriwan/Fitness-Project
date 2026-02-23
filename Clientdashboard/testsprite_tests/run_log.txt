@@ -1,0 +1,52 @@
+🚀 Starting test execution...
+Proxy port: 65392
+Tunnel started successfully! Proxy URL: http://9374bca7-97d6-47f3-a99e-cf97ff63b533:Ic4emF36ppgRTtZtUk2Hz5G9IqDQ2Y0m@tun.testsprite.com:8080
+⚡ Running tests...
+This process may take anywhere from several minutes up to 15 minutes to complete.
+
+✅ Please ensure:
+  • Your local servers are running and reachable
+  • Your internet connection remains stable throughout the process
+Test execution completed.
+HTTP Proxy has been closed.
+Tunnel has been closed.
+Execution lock released.
+
+Server will remain active for 1 hour. Press Ctrl+C to exit early.
+Proxy port: 50161
+⚡ Running tests...
+This process may take anywhere from several minutes up to 15 minutes to complete.
+            
+✅ Please ensure:
+• Your local servers are running and reachable
+• Your internet connection remains stable throughout the process
+Tunnel started successfully! Proxy URL: http://8f27c5e6-c739-430e-a6c6-83b5dc49b5db:KMzja9CU2IAQy3hlYqnb7lZWIEUN9YdM@tun.testsprite.com:8080
+(node:35596) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Proxy port: 60388
+⚡ Running tests...
+This process may take anywhere from several minutes up to 15 minutes to complete.
+            
+✅ Please ensure:
+• Your local servers are running and reachable
+• Your internet connection remains stable throughout the process
+Tunnel started successfully! Proxy URL: http://218c3981-f102-43ea-a3da-47efd6cecdd4:zdGKJnxBmUDkjZcSqbZYUBcQVsBye2ce@tun.testsprite.com:8080
+Proxy port: 50765
+⚡ Running tests...
+This process may take anywhere from several minutes up to 15 minutes to complete.
+            
+✅ Please ensure:
+• Your local servers are running and reachable
+• Your internet connection remains stable throughout the process
+Tunnel started successfully! Proxy URL: http://84377b1c-22ee-4c47-a5ea-8f0dfee6b754:qLjgZ76rMArsHr01B56hJoZVkZBgdJn0@tun.testsprite.com:8080
+Proxy port: 62435
+⚡ Running tests...
+This process may take anywhere from several minutes up to 15 minutes to complete.
+            
+✅ Please ensure:
+• Your local servers are running and reachable
+• Your internet connection remains stable throughout the process
+Tunnel started successfully! Proxy URL: http://aadbfa86-803e-452d-933b-1305744ed81a:RhluqiwLK3x3G7QJDb3zgHADx5TNXfW2@tun.testsprite.com:8080
+[reRunFromStep] API call failed: Error: Backend error: 400 - {"statusCode":400,"message":"Cannot rerun from step 2 because step 1 has failed"}
+✅ Test execution completed
+The AI assistant will generate a report for you.

@@ -1,0 +1,663 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-size: 16px;
+  /* Light Mode - Clean & Professional */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.25 0.025 215);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.25 0.025 215);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.25 0.025 215);
+  --primary: oklch(0.32 0.10 250);
+  --primary-foreground: oklch(0.98 0.002 250);
+  --secondary: oklch(0.92 0.005 215);
+  --secondary-foreground: oklch(0.25 0.025 215);
+  --muted: oklch(0.96 0.003 215);
+  --muted-foreground: oklch(0.50 0.015 215);
+  --accent: oklch(0.70 0.17 40);
+  --accent-foreground: oklch(0.98 0.002 40);
+  --destructive: oklch(0.55 0.20 25);
+  --destructive-foreground: oklch(0.98 0.002 25);
+  --border: oklch(0.92 0.005 215);
+  --input: transparent;
+  --input-background: oklch(0.99 0.001 215);
+  --switch-background: oklch(0.90 0.008 215);
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: oklch(0.70 0.17 40);
+  --chart-1: oklch(0.70 0.17 40);
+  --chart-2: oklch(0.32 0.10 250);
+  --chart-3: oklch(0.75 0.15 30);
+  --chart-4: oklch(0.40 0.12 240);
+  --chart-5: oklch(0.68 0.14 50);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.98 0.002 215);
+  --sidebar-foreground: oklch(0.25 0.025 215);
+  --sidebar-primary: oklch(0.32 0.10 250);
+  --sidebar-primary-foreground: oklch(0.98 0.002 250);
+  --sidebar-accent: oklch(0.96 0.003 215);
+  --sidebar-accent-foreground: oklch(0.32 0.10 250);
+  --sidebar-border: oklch(0.92 0.005 215);
+  --sidebar-ring: oklch(0.70 0.17 40);
+}
+
+.dark {
+  /* Dark Mode - Energetic Orange Primary */
+  --background: oklch(0.15 0.04 250);
+  --foreground: oklch(0.98 0.002 0);
+  --card: oklch(0.18 0.04 250);
+  --card-foreground: oklch(0.98 0.002 0);
+  --popover: oklch(0.18 0.04 250);
+  --popover-foreground: oklch(0.98 0.002 0);
+  --primary: oklch(0.70 0.17 40);
+  --primary-foreground: oklch(0.15 0.04 250);
+  --secondary: oklch(0.25 0.04 215);
+  --secondary-foreground: oklch(0.98 0.002 0);
+  --muted: oklch(0.22 0.04 215);
+  --muted-foreground: oklch(0.70 0.015 215);
+  --accent: oklch(0.70 0.17 40);
+  --accent-foreground: oklch(0.15 0.04 250);
+  --destructive: oklch(0.55 0.20 25);
+  --destructive-foreground: oklch(0.98 0.002 0);
+  --border: oklch(0.25 0.04 215);
+  --input: oklch(0.22 0.04 215);
+  --ring: oklch(0.70 0.17 40);
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: oklch(0.70 0.17 40);
+  --chart-2: oklch(0.45 0.12 250);
+  --chart-3: oklch(0.75 0.15 30);
+  --chart-4: oklch(0.50 0.12 240);
+  --chart-5: oklch(0.68 0.14 50);
+  --sidebar: oklch(0.16 0.04 250);
+  --sidebar-foreground: oklch(0.98 0.002 0);
+  --sidebar-primary: oklch(0.70 0.17 40);
+  --sidebar-primary-foreground: oklch(0.15 0.04 250);
+  --sidebar-accent: oklch(0.20 0.04 215);
+  --sidebar-accent-foreground: oklch(0.70 0.17 40);
+  --sidebar-border: oklch(0.22 0.04 215);
+  --sidebar-ring: oklch(0.70 0.17 40);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/**
+ * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+ */
+@layer base {
+  :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
+    h1 {
+      font-size: var(--text-2xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h2 {
+      font-size: var(--text-xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h3 {
+      font-size: var(--text-lg);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h4 {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    p {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+
+    label {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    button {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    input {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+  }
+}
+
+html {
+  font-size: var(--font-size);
+}
+
+/* Professional UI Enhancements */
+@layer utilities {
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Smooth scrolling */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  /* Custom backdrop blur for modern glass effect */
+  .backdrop-blur-xl {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Enhanced focus visible for accessibility */
+  *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Smooth transitions for interactive elements */
+  button, a, input, select, textarea {
+    transition-property: color, background-color, border-color, transform, box-shadow;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+
+  .shadow-soft {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  }
+
+  .shadow-medium {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+/* Remove default tap highlight on mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Better select styling */
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+
+/* Improved scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground); /* removed opacity modifier for simplicity or use color-mix if needed, but var is oklch string */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track {
+  background: var(--muted);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+@layer components {
+  /* Layout & Sidebar */
+  .layout-container {
+    @apply flex min-h-screen bg-background;
+  }
+
+  .sidebar-desktop {
+    @apply hidden lg:flex flex-col w-64 border-r border-sidebar-border bg-sidebar fixed inset-y-0 z-50 transition-all duration-300;
+  }
+
+  .sidebar-desktop.collapsed {
+    @apply w-20;
+  }
+
+  .sidebar-container {
+    @apply flex flex-col h-full;
+  }
+
+  .sidebar-header {
+    @apply h-16 flex items-center px-6 border-b border-sidebar-border transition-all duration-300;
+  }
+
+  .sidebar-header.collapsed {
+    @apply px-0 justify-center;
+  }
+
+  .brand-title {
+    @apply text-xl font-bold text-sidebar-foreground truncate;
+  }
+
+  .toggle-btn {
+    @apply ml-auto text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent;
+  }
+
+  .nav-container {
+    @apply flex-1 py-6 px-3 space-y-1 overflow-y-auto;
+  }
+
+  .nav-link {
+    @apply flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
+  }
+
+  .nav-link.active {
+   @apply bg-sidebar-primary text-sidebar-primary-foreground shadow-md;
+  }
+
+  .nav-link.collapsed {
+    @apply justify-center px-2;
+  }
+
+  .nav-icon {
+    @apply h-5 w-5 flex-shrink-0;
+  }
+
+  .nav-icon.with-margin {
+    @apply mr-0;
+  }
+
+  .nav-text {
+    @apply truncate;
+  }
+
+  /* Main Content */
+  .main-content-wrapper {
+    @apply flex-1 flex flex-col min-h-screen transition-all duration-300 lg:pl-64;
+  }
+
+  .main-content-wrapper.collapsed {
+    @apply lg:pl-20;
+  }
+
+  .header-desktop {
+    @apply hidden lg:flex h-16 border-b bg-card backdrop-blur-xl px-6 items-center justify-between sticky top-0 z-40;
+  }
+
+  .header-mobile {
+    @apply lg:hidden h-16 border-b bg-card px-4 flex items-center justify-between sticky top-0 z-40;
+  }
+
+  .page-title {
+    @apply text-lg font-semibold;
+  }
+
+  .page-title-mobile {
+    @apply text-lg font-semibold;
+  }
+
+  .page-content {
+    @apply flex-1 overflow-x-hidden;
+  }
+
+  .content-container {
+    @apply w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6;
+  }
+
+  /* Mobile Nav */
+  .mobile-nav-wrapper {
+    @apply lg:hidden fixed bottom-0 left-0 right-0 z-50;
+  }
+
+  .mobile-nav {
+    @apply bg-card border-t safe-area-pb;
+  }
+
+  .mobile-nav-grid {
+    @apply grid grid-cols-5 h-16;
+  }
+
+  .mobile-nav-item {
+    @apply flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-colors;
+  }
+
+  .mobile-nav-item.active {
+    @apply text-primary;
+  }
+
+  .mobile-nav-icon {
+    @apply h-5 w-5;
+  }
+
+  .mobile-nav-text {
+    @apply text-[10px] font-medium;
+  }
+
+  /* User Menu */
+  .user-info-container {
+    @apply px-2 py-1.5;
+  }
+
+  .user-details {
+    @apply flex flex-col space-y-1;
+  }
+
+  .user-name {
+    @apply text-sm font-medium leading-none;
+  }
+
+  .user-email {
+    @apply text-xs leading-none text-muted-foreground;
+  }
+
+  .menu-item-content {
+    @apply flex items-center w-full;
+  }
+
+  .menu-icon {
+    @apply mr-2 h-4 w-4;
+  }
+
+  /* Overlay: พื้นหลังสีดำจางๆ เวลาเปิด Pop-up */
+  .sheet-overlay {
+    @apply fixed inset-0 z-50 bg-black/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0;
+  }
+
+  /* Content: ตัวกล่องเนื้อหาที่จะเลื่อนออกมาจากด้านขวา */
+  .sheet-content {
+    @apply fixed z-50 gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 inset-y-0 right-0 h-full w-3/4 border-l border-border data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm;
+  }
+
+  /* Header & Title Styling */
+  .sheet-header {
+    @apply flex flex-col space-y-2 text-center sm:text-left;
+  }
+
+  .sheet-title {
+    @apply text-lg font-semibold text-foreground;
+  }
+
+  .sheet-description {
+    @apply text-sm text-muted-foreground;
+  }
+
+  /* Dialog / Modal Styling */
+  .dialog-overlay {
+    @apply fixed inset-0 z-50 bg-black/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0;
+  }
+
+  .dialog-content {
+    @apply fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg;
+  }
+
+  .dialog-header {
+    @apply flex flex-col space-y-1.5 text-center sm:text-left;
+  }
+
+  .dialog-title {
+    @apply text-lg font-semibold leading-none tracking-tight;
+  }
+
+  .dialog-description {
+    @apply text-sm text-muted-foreground;
+  }
+
+  /* Form Selection Styling */
+  .selection-row {
+    @apply flex items-center justify-between p-3 rounded-md border bg-card cursor-pointer transition-colors;
+  }
+  .selection-row:hover {
+    background-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+
+  /* Selector Overlay (Nested Modal) */
+  .selector-overlay {
+    @apply absolute inset-0 z-[60] bg-background flex flex-col animate-in slide-in-from-right-10 duration-200;
+  }
+
+  .selector-header {
+    @apply flex items-center gap-2 p-4 border-b;
+  }
+
+  .selector-title {
+    @apply text-lg font-semibold flex-1;
+  }
+
+  .selector-content {
+    @apply flex-1 overflow-y-auto p-4;
+  }
+
+  .selector-list {
+    @apply space-y-2;
+  }
+
+  .selector-item {
+    @apply flex items-center justify-between p-3 rounded-md border hover:bg-accent cursor-pointer transition-colors;
+  }
+
+  .selector-item.selected {
+    @apply border-primary;
+    background-color: color-mix(in srgb, var(--primary) 5%, transparent);
+  }
+
+  .selector-container {
+    @apply w-full max-w-md mx-auto h-full flex flex-col bg-background sm:h-[600px] sm:max-h-[80vh] sm:rounded-lg sm:border sm:shadow-xl sm:m-auto relative;
+  }
+
+  .item-info {
+    @apply flex flex-col gap-0.5;
+  }
+
+  .item-sub {
+    @apply text-xs text-muted-foreground;
+  }
+
+  .icon-check {
+    @apply w-4 h-4 text-primary;
+  }
+
+  /* Form Content & Layout */
+  .form-content {
+    @apply flex-1 overflow-y-auto p-1 space-y-6;
+  }
+
+  .field-group {
+    @apply space-y-2;
+  }
+
+  .field-label {
+    @apply text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70;
+  }
+
+  .required-star {
+    @apply text-destructive ml-1;
+  }
+
+  .input-large {
+    @apply text-lg py-6;
+  }
+
+  .section-card {
+    @apply rounded-lg border bg-card text-card-foreground shadow-sm p-4 space-y-4;
+  }
+
+  .section-header {
+    @apply pb-2 border-b mb-2;
+  }
+
+  .selection-info {
+    @apply flex flex-col items-start gap-1;
+  }
+
+  .selection-label {
+    @apply text-sm font-medium;
+  }
+
+  .selection-value {
+    @apply text-sm;
+  }
+
+  .selection-value.placeholder {
+    @apply text-muted-foreground;
+  }
+
+  .selection-value.has-value {
+    @apply text-foreground font-medium;
+  }
+
+  .icon-chevron {
+    @apply w-4 h-4 text-muted-foreground;
+  }
+
+  /* Tracking Fields */
+  .tracking-header {
+    @apply flex items-center justify-between;
+  }
+
+  .tracking-count {
+    @apply text-xs;
+  }
+
+  .tracking-list {
+    @apply space-y-2;
+  }
+
+  .tracking-item {
+    @apply flex items-center justify-between p-2 rounded-md border;
+    background-color: color-mix(in srgb, var(--muted) 30%, transparent);
+  }
+
+  .tracking-text {
+    @apply text-sm font-medium;
+  }
+
+  .remove-button {
+    @apply text-muted-foreground hover:text-destructive h-8 w-8;
+  }
+  .remove-button:hover {
+    background-color: color-mix(in srgb, var(--destructive) 10%, transparent);
+  }
+
+  .add-field-button {
+    @apply w-full border-dashed;
+  }
+
+  .textarea-custom {
+    @apply min-h-[100px] resize-none;
+  }
+
+  /* Footer */
+  .footer {
+    @apply flex items-center justify-end gap-2 pt-4 border-t mt-4;
+  }
+
+  .footer-button {
+    @apply min-w-[100px];
+  }
+
+  /* Client Profile */
+  .client-profile-container {
+    @apply space-y-6;
+  }
+
+  .client-profile-header {
+    @apply flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4;
+  }
+
+  .header-left {
+    @apply flex items-start gap-4;
+  }
+
+  .profile-info {
+    @apply flex items-center gap-4;
+  }
+
+  .profile-avatar {
+    @apply h-16 w-16 border-2 border-background shadow-sm;
+  }
+
+  .avatar-fallback {
+    @apply text-lg font-semibold text-primary;
+    background-color: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  .profile-name {
+    @apply text-2xl font-bold tracking-tight;
+  }
+
+  .profile-badges {
+    @apply flex items-center gap-2 mt-1;
+  }
+
+  .start-session-button {
+    @apply w-full sm:w-auto shadow-sm;
+  }
+
+  .card-content-padding {
+    @apply p-6;
+  }
+
+  .info-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6;
+  }
+
+  .info-label {
+    @apply text-sm font-medium text-muted-foreground mb-1;
+  }
+
+  .info-value {
+    @apply text-base font-medium;
+  }
+
+  .tabs-list {
+    @apply w-full justify-start h-auto p-1 rounded-lg mb-6 overflow-x-auto flex-nowrap;
+    background-color: color-mix(in srgb, var(--muted) 50%, transparent);
+  }
+
+  .tab-trigger-content {
+    @apply flex items-center gap-2 px-4 py-2 h-9 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all;
+  }
+
+  .tab-label {
+    @apply hidden sm:inline-block;
+  }
+
+  .tabs-content-container {
+    @apply mt-6 space-y-6;
+  }
+}

@@ -1,0 +1,172 @@
+openapi: 3.1.0
+info:
+  title: Fitness Management API
+  version: 1.0.0
+  description: API for Fitness Management Dashboard
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local Development Server
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+  /auth/login:
+    post:
+      summary: Login user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+  /auth/logout:
+    post:
+      summary: Logout user
+      tags: [Auth]
+  /users:
+    get:
+      summary: Get all users
+      tags: [Users]
+      responses:
+        '200':
+          description: List of users
+  /users/{userId}:
+    get:
+      summary: Get user by ID
+      tags: [Users]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+  /clients:
+    get:
+      summary: Get all clients
+      tags: [Clients]
+    post:
+      summary: Create a new client
+      tags: [Clients]
+  /clients/{id}:
+    get:
+      summary: Get client by ID
+      tags: [Clients]
+    put:
+      summary: Update client
+      tags: [Clients]
+    delete:
+      summary: Delete client
+      tags: [Clients]
+  /clients/{id}/metrics:
+    get:
+      summary: Get client metrics (weight, body fat, etc.)
+      tags: [Clients]
+    post:
+      summary: Add new metric record
+      tags: [Clients]
+  /clients/{id}/notes:
+    get:
+      summary: Get client notes
+      tags: [Clients]
+    post:
+      summary: Create client note
+      tags: [Clients]
+  /clients/{id}/sessions:
+    get:
+      summary: Get client sessions
+      tags: [Clients]
+  /clients/{id}/schedules:
+    get:
+      summary: Get client schedules
+      tags: [Clients]
+  /sessions:
+    get:
+      summary: Get all sessions
+      tags: [Sessions]
+    post:
+      summary: Create a new session
+      tags: [Sessions]
+  /sessions/{id}:
+    get:
+      summary: Get session by ID
+      tags: [Sessions]
+    put:
+      summary: Update session (e.g. status, summary)
+      tags: [Sessions]
+  /programs:
+    get:
+      summary: Get all programs
+      tags: [Programs]
+    post:
+      summary: Create a new program
+      tags: [Programs]
+  /programs/{id}/exercises:
+    post:
+      summary: Add exercise to program
+      tags: [Programs]
+  /exercises:
+    get:
+      summary: Get all exercises
+      tags: [Exercises]
+    post:
+      summary: Create a new exercise
+      tags: [Exercises]
+  /exercises/{id}:
+    put:
+      summary: Update exercise
+      tags: [Exercises]
+    delete:
+      summary: Delete exercise
+      tags: [Exercises]
+  /dashboard/stats:
+    get:
+      summary: Get dashboard statistics
+      tags: [Dashboard]
+  /schedules:
+    get:
+      summary: Get all schedules (or today's sessions)
+      tags: [Schedules]
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+    Client:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        goal:
+          type: string

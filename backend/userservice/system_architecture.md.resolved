@@ -1,0 +1,95 @@
+# System Architecture Overview (แผนภาพสถาปัตยกรรมระบบ)
+
+เอกสารนี้แสดงภาพรวมสถาปัตยกรรมของระบบ Fitness Management Platform โดยจำลองการไหลของข้อมูลตามรูปแบบที่คุณต้องการครับ
+
+---
+
+## 🏗️ 1. Architecture Diagram (แผนภาพจำลองการทำงาน)
+แผนภาพนี้แสดงความสัมพันธ์ของทั้ง 4 ส่วนหลัก (`Trainer Frontend`, `Client Frontend`, `Backend Service`, `Database`) ตาม Flow การทำงานจริง
+
+```mermaid
+graph LR
+    %% ---------------- Actors (ผู้ใช้งาน) ----------------
+    TrainerUser(👤 ผู้ใช้งาน<br/>ฝั่งเทรนเนอร์)
+    ClientUser(👤 ผู้ใช้งาน<br/>ฝั่งลูกเทรน)
+
+    %% ---------------- System Boundary ----------------
+    subgraph System ["💻 ระบบ Fitness Management Platform"]
+        direction TB
+        
+        %% --- Frontend Components ---
+        TrainerDash["📱 Trainer Dashboard<br/>(FitnessManagementDashboard-trainer)"]
+        ClientDash["📱 Client Dashboard<br/>(Clientdashboard)"]
+
+        %% --- Logic Component (บริการตรวจสอบและประมวลผล) ---
+        Logic(("⚙️ ตรวจสอบความถูกต้อง<br/>และประมวลผล<br/>(backend/userservice)"))
+
+        %% --- Data Transfer Objects (ตัวกลางข้อมูล) ---
+        TrainerData["📂 ข้อมูลลูกเทรน,<br/>คลังท่าออกกำลังกาย,<br/>โปรแกรม, ตารางนัด"]
+        ClientData["📊 ผลการฝึก, กราฟ,<br/>และตารางนัดหมาย"]
+
+        %% --- Database Component ---
+        Database[("🗄️ Backend / Database<br/>(backend/userdatabase)")]
+    end
+
+    %% ---------------- Flows (เส้นทางการทำงาน) ----------------
+    
+    %% Path 1: Trainer Action (เพิ่ม/ลบ/แก้ไข)
+    TrainerUser -->|"1. ทำรายการต่างๆ"| TrainerDash
+    TrainerDash -->|"2. ส่งคำสั่ง (แก้ไข/บันทึก/ลบ)"| Logic
+    Logic -->|"3. บันทึกข้อมูลลงฐานข้อมูล"| Database
+
+    %% Path 2: Trainer View (ดึงข้อมูลมาแสดง)
+    Database -.->|"4. ส่งข้อมูลกลับ"| TrainerData
+    TrainerData -.->|"5. แสดงผลบนแอปพลิเคชัน"| TrainerDash
+    TrainerDash -.->|"6. แสดงผลลัพธ์บนหน้าจอ"| TrainerUser
+
+    %% Path 3: Client View (ดูข้อมูล)
+    ClientUser -->|"1. ดูข้อมูลเกี่ยวกับตนเอง"| ClientDash
+    Database -.->|"2. ส่งข้อมูลกลับ"| ClientData
+    ClientData -.->|"3. แสดงผลบนแอปพลิเคชัน"| ClientDash
+    ClientDash -.->|"4. แสดงผลลัพธ์บนหน้าจอ"| ClientUser
+
+    %% Styling
+    classDef actor fill:#00bfff,stroke:#333,stroke-width:2px,color:white;
+    classDef frontend fill:#fff,stroke:#ff9900,stroke-width:2px,color:black,rx:10,ry:10;
+    classDef logic fill:#fff,stroke:#ff0000,stroke-width:2px,color:black,circle;
+    classDef data fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:black,stroke-dasharray: 5 5;
+    classDef db fill:#4a4a4a,stroke:#333,stroke-width:2px,color:white,shape:cylinder;
+
+    class TrainerUser,ClientUser actor;
+    class TrainerDash,ClientDash frontend;
+    class Logic logic;
+    class TrainerData,ClientData data;
+    class Database db;
+```
+
+---
+
+## 🧩 2. คำอธิบายองค์ประกอบ (Component Mapping)
+
+เพื่อให้สอดคล้องกับไฟล์ในโปรเจคจริง ผมได้จับคู่แต่ละส่วนในภาพให้ดังนี้ครับ:
+
+### 1. Trainer Dashboard
+*   **ในภาพคือ:** หน้าจอมือถือฝั่งเทรนเนอร์
+*   **ในโปรเจคคือ:** โฟลเดอร์ `FitnessManagementDashboard-trainer`
+*   **หน้าที่:** รับคำสั่งจากเทรนเนอร์ (เช่น กดสร้างโปรแกรม) แล้วส่งต่อไปยัง "จุดประมวลผล"
+
+### 2. Client Dashboard
+*   **ในภาพคือ:** หน้าจอมือถือฝั่งลูกเทรน
+*   **ในโปรเจคคือ:** โฟลเดอร์ `Clientdashboard`
+*   **หน้าที่:** รับข้อมูลผลการฝึกและกราฟสวยๆ มาแสดงให้ลูกค้าดู
+
+### 3. ตรวจสอบความถูกต้องและประมวลผล (Processing Logic)
+*   **ในภาพคือ:** วงกลมตรงกลาง
+*   **ในโปรเจคคือ:** โฟลเดอร์ `backend/userservice` (ไฟล์ `user_service.go`, `handler`, etc.)
+*   **หน้าที่:** เป็นด่านกั้นกลาง คอยเช็คว่า "ข้อมูลครบไหม?", "User มีสิทธิ์ไหม?" ก่อนจะอนุญาตให้บันทึกลงถังข้อมูล
+
+### 4. Backend / Database
+*   **ในภาพคือ:** ถังข้อมูล (Cylinder) ด้านขวาล่าง
+*   **ในโปรเจคคือ:** โฟลเดอร์ `backend/userdatabase` (PostgreSQL Docker)
+*   **หน้าที่:** เก็บข้อมูลทุกอย่างจริงๆ ไว้ในนี้ (Users, Programs, Exercises)
+
+---
+
+หวังว่าแผนภาพนี้จะช่วยให้เห็นภาพการทำงานของระบบชัดเจนขึ้นตามรูปแบบที่คุณต้องการนะครับ!

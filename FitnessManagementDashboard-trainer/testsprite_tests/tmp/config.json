@@ -1,0 +1,21 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000/trainer/programs",
+  "loginUser": "test@gmail.com",
+  "loginPassword": "292546",
+  "executionArgs": {
+    "projectName": "FitnessManagementDashboard-trainer",
+    "projectPath": "c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer",
+    "testIds": [
+      "TC005"
+    ],
+    "additionalInstruction": "Re-run only TC005 (Add Exercise to Section). The component now has data-testid=\"add-exercise-btn\" on the add exercise button and data-testid=\"exercise-picker-dialog\" on the exercise picker dialog. Use these data-testid selectors instead of xpath for more reliable element targeting. The app uses Thai language UI. Login with test@gmail.com / 292546 at http://localhost:3000. Navigate to /trainer/programs, open a program, expand a section, click the add exercise button, select an exercise from the picker, and verify it appears in the section.",
+    "envs": {
+      "API_KEY": "sk-user-NrtMxEDJw9bOdDxZvfaKV0wQMULTdvF73SK1H18SLhZLXUWGUh4YL6pTdbiD_HqR59pjaH1ESINU8hmy64Kt3GyJUQ5PURloSEZUEasWDpnuMPRCxxegjS6SdIBy00Dtf2Y"
+    }
+  },
+  "serverPort": 59096,
+  "proxy": "http://335ac545-2074-4972-8de4-6c0fd78caed1:9nyNY7c2LCKEW1rrGDrgszwS3EJG8tsG@tun.testsprite.com:8080"
+}

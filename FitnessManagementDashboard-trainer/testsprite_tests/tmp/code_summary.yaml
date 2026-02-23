@@ -1,0 +1,81 @@
+version: "2"
+type: frontend
+tech_stack:
+  - javascript
+  - typescript
+  - react
+  - vite
+  - tailwindcss
+  - radix-ui
+routes:
+  - path: /signin
+    file: src/components/SignIn.tsx
+    auth_required: false
+    description: User sign in page
+  - path: /trainer/dashboard
+    file: src/components/page/Trainer/Dashboard.tsx
+    auth_required: true
+    description: Trainer dashboard overview
+  - path: /trainer/clients
+    file: src/components/page/Trainer/ClientsList.tsx
+    auth_required: true
+    description: List of clients
+  - path: /trainer/clients/:id
+    file: src/components/page/Trainer/ClientProfilePage.tsx
+    auth_required: true
+    description: Client profile details
+  - path: /trainer/calendar
+    file: src/components/page/Trainer/Calendar.tsx
+    auth_required: true
+    description: Trainer calendar view
+  - path: /trainer/sessions/:id/log
+    file: src/components/page/Trainer/SessionLog.tsx
+    auth_required: true
+    description: Log session details
+  - path: /trainer/session-log
+    file: src/components/page/Trainer/SessionLog.tsx
+    auth_required: true
+    description: View session logs
+  - path: /trainer/sessions/new
+    file: src/components/page/Trainer/AddSession.tsx
+    auth_required: true
+    description: Create new session
+  - path: /trainer/programs
+    file: src/components/page/Trainer/ProgramBuilderSectionBased.tsx
+    auth_required: true
+    description: Build and manage workout programs
+  - path: /trainer/library/exercises
+    file: src/components/page/Trainer/ExerciseLibrary.tsx
+    auth_required: true
+    description: Manage exercise library
+  - path: /trainer/reports
+    file: src/components/page/Trainer/Reports.tsx
+    auth_required: true
+    description: View reports and analytics
+  - path: /trainer/settings
+    file: src/components/page/Trainer/Settings.tsx
+    auth_required: true
+    description: Trainer settings
+features:
+  - name: Authentication
+    description: User login functionality
+    files:
+      - src/components/SignIn.tsx
+      - src/components/page/Trainer/AuthContext.tsx
+    entry_route: /signin
+    user_interactions:
+      - Enter email and password
+      - Click Sign In button
+    auth_required: false
+  - name: Program Management
+    description: Create and manage workout programs with sections and exercises
+    files:
+      - src/components/page/Trainer/ProgramBuilderSectionBased.tsx
+    entry_route: /trainer/programs
+    user_interactions:
+      - View list of programs
+      - Create new program
+      - Add sections to program
+      - Add exercises to sections
+    auth_required: true
+known_limitations: []
