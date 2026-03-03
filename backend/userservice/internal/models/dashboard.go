@@ -2,11 +2,12 @@ package models
 
 // DashboardStats สถิติรวมสำหรับหน้า Dashboard
 type DashboardStats struct {
-	TotalClients      int `json:"total_clients"`
-	ActivePrograms    int `json:"active_programs"`
-	UpcomingSession   int `json:"upcoming_sessions"`
-	MonthlySessions   int `json:"monthly_sessions"`
-	CompletedSessions int `json:"completed_sessions"`
+	TotalClients         int `json:"total_clients"`
+	ActivePrograms       int `json:"active_programs"`
+	UpcomingSession      int `json:"upcoming_sessions"`
+	MonthlySessions      int `json:"monthly_sessions"`
+	TotalMonthlySessions int `json:"total_monthly_sessions"`
+	CompletedSessions    int `json:"completed_sessions"`
 
 	// Complex Stats
 	SessionHistory []DailySessionStats `json:"session_history"`

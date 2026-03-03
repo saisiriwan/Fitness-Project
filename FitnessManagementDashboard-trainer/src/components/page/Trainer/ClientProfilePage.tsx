@@ -66,28 +66,33 @@ export default function ClientProfile() {
 
   const activeTab = searchParams.get("tab") || "schedule";
 
+  /* ฟังก์ชัน: fetchClientData
+     ใช้สำหรับ: ทุกส่วน (โหลดเริ่มต้น)
+     หน้าที่: ดึงข้อมูลลูกค้า + sessions จาก API */
   const fetchClientData = async () => {
+    // ถ้ายังไม่มี id จาก URL params → ไม่ทำอะไร
     if (!id) return;
     try {
-      setLoading(true);
-      // 1. Fetch Client Details
+      setLoading(true); // เปิด loading spinner
+      // 1. ดึงข้อมูลลูกค้า (ชื่อ, email, เป้าหมาย, สถานะ ฯลฯ)
       const clientRes = await api.get(`/clients/${id}`);
       setClient(clientRes.data);
 
-      // 2. Fetch Sessions for stats
+      // 2. ดึง sessions ของลูกค้า (ใช้คำนวณนัดหมายถัดไป + สถิติ)
       const sessionRes = await api.get(`/clients/${id}/sessions`);
-      // Handle potential nested structure (common API pattern)
+      // รองรับหลายรูปแบบ response (บาง API ส่ง data.data.sessions, บางทีส่ง data.sessions)
       const sessionsData =
         sessionRes.data?.data?.sessions ||
         sessionRes.data?.sessions ||
         sessionRes.data ||
         [];
+      // เก็บเฉพาะที่เป็น array (ป้องกัน API คืนรูปแบบแปลก)
       setSessions(Array.isArray(sessionsData) ? sessionsData : []);
     } catch (err) {
       console.error("Failed to fetch client data", err);
       toast.error("ไม่สามารถโหลดข้อมูลลูกเทรนได้");
     } finally {
-      setLoading(false);
+      setLoading(false); // ปิด loading ไม่ว่าจะสำเร็จหรือ error
     }
   };
 
@@ -117,34 +122,18 @@ export default function ClientProfile() {
     );
   }
 
-  const handleStartSession = async () => {
-    try {
-      const now = new Date();
-      const startTime = toRFC3339String(now);
-      const endTime = toRFC3339String(new Date(now.getTime() + 60 * 60 * 1000)); // Default 1 hour
-
-      const res = await api.post("/sessions", {
-        client_id: client.id,
-        title: "Workout Session",
-        start_time: startTime,
-        end_time: endTime,
-        status: "in-progress",
-        notes: "Started from Client Profile",
-      });
-      navigate(`/trainer/sessions/${res.data.id}/log`);
-    } catch (err) {
-      console.error(err);
-      toast.error("ไม่สามารถเริ่มเซสชันได้");
-    }
-  };
-
+  /* ฟังก์ชัน: getStatusBadge
+     ใช้สำหรับ: Header → Badge สถานะลูกค้า
+     หน้าที่: แปลง status string เป็น label ภาษาไทย + variant สี */
   const getStatusBadge = (status: string) => {
+    // map สถานะ → label + variant สำหรับ Badge component
     const statusMap = {
-      active: { label: "กำลังออกกำลัง", variant: "default" as const },
-      paused: { label: "พักชั่วคราว", variant: "secondary" as const },
-      inactive: { label: "ไม่ได้ใช้งาน", variant: "outline" as const },
+      active: { label: "กำลังออกกำลัง", variant: "default" as const }, // สีหลัก
+      paused: { label: "พักชั่วคราว", variant: "secondary" as const }, // สีเทา
+      inactive: { label: "ไม่ได้ใช้งาน", variant: "outline" as const }, // สีขอบ
     };
 
+    // ถ้าหาไม่เจอใน map → ใช้ status ดิบ + outline
     return (
       statusMap[status as keyof typeof statusMap] || {
         label: status,
@@ -230,70 +219,57 @@ export default function ClientProfile() {
           </div>
         </div>
 
-        {/* Client Identity Block */}
-        <div className="flex items-center gap-4 px-2 md:px-0 max-w-5xl mx-auto">
-          {/* Avatar Placeholder if none */}
-          <div className="h-16 w-16 md:h-20 md:w-20 rounded-full bg-navy-100 flex items-center justify-center text-navy-600 font-bold text-xl md:text-2xl shrink-0">
-            {client.name.charAt(0)}
-          </div>
-          <div className="flex-1">
-            <h1 className="text-xl md:text-3xl font-bold tracking-tight text-navy-900 leading-tight">
-              {client.name}
-            </h1>
-            <p className="text-sm md:text-base text-muted-foreground mt-0.5">
-              {client.email}
-            </p>
-            <div className="mt-2 flex gap-2">
-              <Badge
-                variant={statusBadge.variant}
-                className="text-[10px] md:text-xs px-2 md:px-3 py-0.5 md:py-1 rounded-full font-medium"
-              >
-                {statusBadge.label}
-              </Badge>
+        {/* Client Identity Block & Next Session */}
+        <div className="flex flex-col md:flex-row md:items-center gap-4 px-2 md:px-0 max-w-5xl mx-auto">
+          <div className="flex items-center gap-4 shrink-0">
+            {/* Avatar Placeholder if none */}
+            <div className="h-16 w-16 md:h-20 md:w-20 rounded-full bg-navy-100 flex items-center justify-center text-navy-600 font-bold text-xl md:text-2xl shrink-0">
+              {client.name.charAt(0)}
+            </div>
+            <div className="flex-1">
+              <h1 className="text-xl md:text-3xl font-bold tracking-tight text-navy-900 leading-tight">
+                {client.name}
+              </h1>
+              <p className="text-sm md:text-base text-muted-foreground mt-0.5">
+                {client.email}
+              </p>
+              <div className="mt-2 flex gap-2">
+                <Badge
+                  variant={statusBadge.variant}
+                  className="text-[10px] md:text-xs px-2 md:px-3 py-0.5 md:py-1 rounded-full font-medium"
+                >
+                  {statusBadge.label}
+                </Badge>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="px-4 md:px-8 py-4 md:py-6 space-y-4 md:space-y-6 max-w-5xl mx-auto">
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Quick Action */}
-          <Button
-            onClick={handleStartSession}
-            className="w-full md:w-1/3 min-h-[56px] md:h-auto rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md shadow-orange-500/20 active:scale-[0.98] transition-all flex md:flex-col items-center justify-center md:gap-2"
-          >
-            <Dumbbell className="h-5 w-5 md:h-6 md:w-6 mr-2 md:mr-0" />
-            <span className="font-semibold md:text-lg">
-              เริ่มบันทึกการฝึกสอน
-            </span>
-          </Button>
-
-          {/* 🎯 นัดหมายถัดไป (Mobile Optimized Card) */}
+          {/* 🎯 นัดหมายถัดไป (Moved to Header) */}
           {nextSession && (
             <div
-              className={`w-full md:flex-1 bg-white rounded-2xl border ${isOverdue ? "border-red-100" : "border-gray-100"} p-4 md:p-6 shadow-sm relative overflow-hidden flex items-center`}
+              className={`w-full md:w-auto md:min-w-[320px] md:ml-8 bg-white rounded-2xl border ${isOverdue ? "border-red-100" : "border-gray-200"} p-4 shadow-sm relative overflow-hidden flex items-center shrink-0`}
             >
               <div
-                className={`absolute top-0 right-0 w-24 md:w-32 h-24 md:h-32 ${isOverdue ? "bg-red-50" : "bg-orange-50"} rounded-bl-full -z-0 opacity-50`}
+                className={`absolute top-0 right-0 w-24 h-24 ${isOverdue ? "bg-red-50" : "bg-orange-50"} rounded-bl-full -z-0 opacity-50`}
               />
               <div className="relative z-10 flex items-center justify-between w-full">
-                <div className="flex items-center gap-3 md:gap-5">
+                <div className="flex items-center gap-3 md:gap-4">
                   <div
-                    className={`h-12 w-12 md:h-14 md:w-14 rounded-xl ${isOverdue ? "bg-red-100" : "bg-orange-100"} flex items-center justify-center shrink-0`}
+                    className={`h-10 w-10 md:h-12 md:w-12 rounded-xl ${isOverdue ? "bg-red-100" : "bg-orange-100"} flex items-center justify-center shrink-0`}
                   >
                     {isOverdue ? (
-                      <AlertCircle className="h-6 w-6 md:h-7 md:w-7 text-red-600" />
+                      <AlertCircle className="h-5 w-5 md:h-6 md:w-6 text-red-600" />
                     ) : (
-                      <CalendarIcon className="h-6 w-6 md:h-7 md:w-7 text-orange-600" />
+                      <CalendarIcon className="h-5 w-5 md:h-6 md:w-6 text-orange-600" />
                     )}
                   </div>
                   <div>
                     <p
-                      className={`text-[11px] md:text-sm font-semibold uppercase tracking-wider mb-0.5 md:mb-1 ${isOverdue ? "text-red-600" : "text-orange-600"}`}
+                      className={`text-[10px] md:text-xs font-semibold uppercase tracking-wider mb-0.5 ${isOverdue ? "text-red-600" : "text-orange-600"}`}
                     >
                       {isOverdue ? "เกินกำหนด / ขาดเรียน" : "นัดหมายคลาสถัดไป"}
                     </p>
-                    <p className="font-bold text-gray-900">
+                    <p className="font-bold text-gray-900 text-sm md:text-base">
                       {new Date(nextSession.start_time).toLocaleDateString(
                         "th-TH",
                         {
@@ -318,28 +294,28 @@ export default function ClientProfile() {
                 <div className="text-right flex flex-col items-center justify-center ml-4 shrink-0">
                   {isOverdue ? (
                     <div className="flex flex-col items-center">
-                      <p className="text-xl md:text-2xl font-black text-red-500 leading-none my-1">
+                      <p className="text-lg md:text-xl font-black text-red-500 leading-none my-1">
                         Overdue
                       </p>
-                      <p className="text-[10px] md:text-xs text-red-400 font-medium mt-1">
+                      <p className="text-[10px] text-red-400 font-medium mt-1">
                         {Math.abs(daysDiff)} วันที่แล้ว
                       </p>
                     </div>
                   ) : isToday ? (
                     <div className="flex flex-col items-center">
-                      <p className="text-xl md:text-2xl font-black text-orange-500 leading-none my-1">
+                      <p className="text-lg md:text-xl font-black text-orange-500 leading-none my-1">
                         วันนี้
                       </p>
                     </div>
                   ) : (
                     <>
-                      <p className="text-[10px] md:text-xs text-gray-400 uppercase">
+                      <p className="text-[9px] md:text-[10px] text-gray-400 uppercase">
                         อีก
                       </p>
-                      <p className="text-2xl md:text-4xl font-black text-orange-500 leading-none my-1">
+                      <p className="text-xl md:text-2xl font-black text-orange-500 leading-none my-1">
                         {daysDiff}
                       </p>
-                      <p className="text-[10px] md:text-xs text-gray-400 uppercase">
+                      <p className="text-[9px] md:text-[10px] text-gray-400 uppercase">
                         วัน
                       </p>
                     </>
@@ -349,7 +325,9 @@ export default function ClientProfile() {
             </div>
           )}
         </div>
+      </div>
 
+      <div className="px-4 md:px-8 py-4 md:py-6 space-y-4 md:space-y-6 max-w-5xl mx-auto">
         {/* 📋 Tabs - รายละเอียดเพิ่มเติม (Mobile App Style Tabs) */}
         <div className="bg-white rounded-2xl p-2 md:p-4 border border-gray-100 shadow-sm">
           <Tabs

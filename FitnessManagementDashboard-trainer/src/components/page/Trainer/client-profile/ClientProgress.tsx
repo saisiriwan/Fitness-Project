@@ -19,36 +19,39 @@ import {
   ChevronRight,
   Trash2,
 } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { toRFC3339String } from "@/lib/utils";
 
 import type { Client } from "../ClientProfilePage";
 
+/* ==========================================================================
+   Interface: ClientProgressProps
+   ใช้สำหรับ: ทุกหน้า — เป็น props หลักที่รับข้อมูล client เข้ามาใช้ทั้ง component
+   ========================================================================== */
 interface ClientProgressProps {
   client: Client;
 }
 
+/* Interface: ProgressRecord
+   ใช้สำหรับ: ทุกหน้า — โครงสร้างข้อมูลบันทึก metric แต่ละจุด (วันที่ + ค่า)
+   ใช้ใน: กราฟ Overview, Mini Chart Popup, Metrics Details List */
 interface ProgressRecord {
   date: string;
   value: number;
 }
 
+/* Interface: MetricFormData
+   ใช้สำหรับ: หน้า Update Modal — เก็บค่าที่ผู้ใช้กรอกในฟอร์มบันทึกข้อมูลร่างกาย */
 interface MetricFormData {
   [key: string]: string;
 }
 
-// --- Configuration (แบบใหม่ เพื่อรองรับ UI) ---
+/* ==========================================================================
+   Config: METRIC_CONFIG
+   ใช้สำหรับ: ทุกหน้า — กำหนด label (ชื่อ), unit (หน่วย), icon สำหรับ metric แต่ละตัว
+   ถูกใช้ใน: Overview Cards, Details List, Update Modal inputs, กราฟ
+   ========================================================================== */
 const METRIC_CONFIG: Record<
   string,
   { label: string; unit: string; icon: any }
@@ -82,6 +85,9 @@ const METRIC_CONFIG: Record<
   thigh_right: { label: "ต้นขาขวา", unit: "cm", icon: Ruler },
 };
 
+/* Config: TABS
+   ใช้สำหรับ: หน้า Update Modal — แท็บด้านบนของ Modal สำหรับสลับหมวดหมู่
+   (ร่างกาย & BMI / สัดส่วน / หัวใจ-ปอด / ความแข็งแรง) */
 const TABS = [
   { id: "basic", label: "ร่างกาย & BMI", icon: Scale },
   { id: "body", label: "สัดส่วน", icon: Ruler },
@@ -89,27 +95,13 @@ const TABS = [
   { id: "strength", label: "ความแข็งแรง (1RM)", icon: Trophy },
 ];
 
-// Mapping เป้าหมายกับค่าที่ต้องกรอก
-const GOAL_METRICS: any = {
-  weight_loss: {
-    primary: ["weight", "body_fat"],
-    secondary: ["waist", "hip", "bmi"],
-  },
-  muscle_building: {
-    primary: ["weight", "muscle"],
-    secondary: ["chest", "arm_right", "thigh_right"],
-  },
-  strength: {
-    primary: ["weight", "muscle"],
-    secondary: ["body_fat"],
-  },
-  general_health: {
-    primary: ["weight", "bmi"],
-    secondary: ["body_fat", "waist"],
-  },
-};
-
-// --- Main Component ---
+/* ==========================================================================
+   Main Component: ClientProgress
+   เป็น component หลักของทั้งหน้า — ประกอบด้วย 3 ส่วน UI ใหญ่:
+     1. หน้า Overview    → แสดง Metric Cards + กราฟแนวโน้ม (currentView === "overview")
+     2. หน้า Details     → แสดงรายการ Metrics ทั้งหมดแบบ List (currentView === "details")
+     3. Update Modal     → Popup form สำหรับกรอก/บันทึกข้อมูลร่างกาย (showUpdateModal === true)
+   ========================================================================== */
 export default function ClientProgress({ client }: ClientProgressProps) {
   // State Management
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -148,22 +140,32 @@ export default function ClientProgress({ client }: ClientProgressProps) {
     [],
   );
 
-  // [NEW] Helper Functions for managing manual metrics list
+  /* ฟังก์ชัน: handleAddManualMetric
+     ใช้สำหรับ: หน้า Update Modal → แท็บ "ความแข็งแรง (1RM)"
+     หน้าที่: เพิ่ม exercise เข้าลิสต์ "บันทึกสถิติท่าอื่นๆ" (Manual Record) ใน Strength tab */
   const handleAddManualMetric = (id: string) => {
+    // ถ้า id ว่าง → ไม่ทำอะไร (ป้องกัน error จาก dropdown ที่ยังไม่ได้เลือก)
     if (!id) return;
+    // เช็คว่าท่านี้ถูกเพิ่มไปแล้วยัง → ถ้ายังไม่มีให้เพิ่มเข้า list
+    // (ป้องกันเพิ่มท่าซ้ำ)
     if (!selectedManualMetrics.includes(id)) {
+      // สร้าง array ใหม่ = ของเดิม + id ที่เพิ่ง → อัปเดต state
       setSelectedManualMetrics([...selectedManualMetrics, id]);
     }
   };
 
+  /* ฟังก์ชัน: handleRemoveManualMetric
+     ใช้สำหรับ: หน้า Update Modal → แท็บ "ความแข็งแรง (1RM)"
+     หน้าที่: ลบ exercise ออกจากลิสต์ Manual Record + ลบค่าออกจาก formData */
   const handleRemoveManualMetric = (idToRemove: string) => {
+    // กรองเอาท่าที่ต้องการลบออกจาก list (เก็บเฉพาะท่าที่ id ไม่ตรงกับ idToRemove)
     setSelectedManualMetrics(
       selectedManualMetrics.filter((id) => id !== idToRemove),
     );
-    // Optional: Remove from formData as well
-    const newFormData = { ...formData };
-    delete newFormData[idToRemove];
-    setFormData(newFormData);
+    // ลบค่าออกจาก formData ด้วย เพื่อไม่ให้ค่าเก่าถูกส่งไป API
+    const newFormData = { ...formData }; // copy formData เดิม
+    delete newFormData[idToRemove]; // ลบ key ของท่าที่ถอดออก
+    setFormData(newFormData); // อัปเดต state ใหม่
   };
 
   // Guard Clause: ถ้าไม่มี Client ให้แสดง Loading
@@ -177,57 +179,73 @@ export default function ClientProgress({ client }: ClientProgressProps) {
 
   // --- Effects ---
 
-  // 1. Load Initial Data
+  /* useEffect: loadData (โหลดข้อมูล metric ทั้งหมดจาก API)
+     ใช้สำหรับ: ทุกหน้า — ดึงข้อมูล metrics ของลูกค้าจาก backend แล้วจัดเก็บใน state
+     ข้อมูลนี้ถูกนำไปใช้ใน: Overview Cards, กราฟแนวโน้ม, Details List, Mini Chart Popup */
   useEffect(() => {
     const loadData = async () => {
+      // เปิดสถานะ loading → แสดง spinner ใน UI
       setDataLoading(true);
       try {
+        // เรียก API ดึง metrics ทั้งหมดของลูกค้า (weight, body_fat, muscle ฯลฯ)
         const response = await api.get(`/clients/${client.id}/metrics`);
+        // ถ้า response ไม่มี data ให้ใช้ array ว่าง (ป้องกัน null)
         const metrics = response.data || [];
 
-        // แปลง response เป็น format ที่ component ต้องการ
+        // แปลง response จาก flat array → จัดกลุ่มตาม type
+        // เช่น [{type:"weight", value:70}, {type:"weight", value:68}, {type:"body_fat", value:20}]
+        // → { weight: [{date, value:70}, {date, value:68}], body_fat: [{date, value:20}] }
         const organized: Record<string, ProgressRecord[]> = {};
 
         metrics.forEach((metric: any) => {
+          // ถ้ายังไม่มี key นี้ใน organized → สร้าง array ว่างก่อน
           if (!organized[metric.type]) {
             organized[metric.type] = [];
           }
+          // เพิ่ม { date, value } เข้าไปในกลุ่มที่ตรงกับ type
           organized[metric.type].push({
             date: metric.date,
             value: metric.value,
           });
         });
 
-        // Sort by date
+        // เรียงข้อมูลในแต่ละ metric ตามวันที่ (เก่า → ใหม่)
+        // จำเป็นเพราะกราฟต้อง plot จากซ้ายไปขวาตามเวลา
         Object.keys(organized).forEach((key) => {
           organized[key].sort(
             (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
           );
         });
 
+        // เก็บข้อมูลที่จัดระเบียบแล้วใน state → ทุก UI จะ re-render ด้วยข้อมูลใหม่
         setMetricsData(organized);
       } catch (error) {
         console.error("Load data failed", error);
         toast.error("โหลดข้อมูลไม่สำเร็จ");
-        // ถ้าไม่มีข้อมูล ใช้ demo data
+        // ถ้า API ล้มเหลว → ใช้ข้อมูลจำลอง (demo) แทน เพื่อไม่ให้หน้าว่างเปล่า
         generateDemoData();
       } finally {
+        // ปิดสถานะ loading ไม่ว่าจะสำเร็จหรือ error → ซ่อน spinner
         setDataLoading(false);
       }
     };
+    // เรียก loadData เฉพาะเมื่อมี client.id (ป้องกันเรียก API ตอนที่ยังไม่มีข้อมูลลูกค้า)
     if (client.id) loadData();
   }, [client.id]);
 
-  // 1.1 Load Exercises for 1RM
-  // 1.1 Load Exercises for 1RM (Filtered by Assigned Program)
+  /* useEffect: fetchExercisesAndProgram (โหลด exercises สำหรับ 1RM)
+     ใช้สำหรับ: หน้า Update Modal → แท็บ "ความแข็งแรง (1RM)"
+     หน้าที่: ดึงรายการท่าออกกำลังกาย (Weight Training) จาก API
+     แล้วกรองเฉพาะท่าที่อยู่ในโปรแกรมที่ assign ให้ลูกค้า → ใช้แสดงเป็น dropdown ใน 1RM Calculator */
   useEffect(() => {
     const fetchExercisesAndProgram = async () => {
       try {
-        // A. Fetch All Exercises (Library)
+        // A. ดึงรายการท่าออกกำลังกายทั้งหมดจาก Exercise Library
         const res = await api.get("/exercises");
         const allExercises = res.data || [];
 
-        // B. Filter for Weight Training Candidates
+        // B. กรองเฉพาะท่า Weight Training (เพราะ 1RM ใช้กับการยกน้ำหนักเท่านั้น)
+        // เช็คจาก category หรือ modality ว่าเป็น "weight" หรือ "strength"
         const weightExercises = allExercises.filter((ex: any) => {
           const cat = (ex.category || "").toLowerCase();
           const mod = (ex.modality || "").toLowerCase();
@@ -238,17 +256,18 @@ export default function ClientProgress({ client }: ClientProgressProps) {
           );
         });
 
-        // C. Fetch Assigned Program to Filter
-        let validExerciseIds = new Set<number>();
-        let programFound = false;
+        // C. ดึงโปรแกรมที่ assign ให้ลูกค้า เพื่อกรองเฉพาะท่าที่อยู่ในโปรแกรม
+        let validExerciseIds = new Set<number>(); // เก็บ ID ของท่าที่อยู่ในโปรแกรม
+        let programFound = false; // flag ว่าเจอโปรแกรมหรือยัง
 
-        // Try using client.currentProgram if available
+        // ลองใช้ client.currentProgram ก่อน
         let programId = client.currentProgram;
 
-        // If not available on prop, try finding it like ClientProgram.tsx
+        // ถ้าไม่มีใน prop → ค้นหาจากรายการโปรแกรมทั้งหมด (fallback)
         if (!programId) {
           try {
             const allProgsRes = await api.get("/programs");
+            // หาโปรแกรมที่ client_id ตรงกับลูกค้าคนนี้
             const assigned = (allProgsRes.data || []).find(
               (p: any) => p.client_id === parseInt(client.id.toString()),
             );
@@ -258,22 +277,23 @@ export default function ClientProgress({ client }: ClientProgressProps) {
           }
         }
 
+        // ถ้าเจอ programId → ดึงรายละเอียดโปรแกรมเพื่อดึง exercise IDs
         if (programId) {
           try {
             const progRes = await api.get(`/programs/${programId}`);
             const schedule = progRes.data?.schedule || [];
 
-            // Extract Exercise IDs from Schedule -> Sections -> Exercises
+            // วนลูป: schedule → days → sections → exercises → ดึง exercise_id
             schedule.forEach((day: any) => {
               if (day.Sections) {
                 day.Sections.forEach((section: any) => {
                   if (section.Exercises) {
                     section.Exercises.forEach((ex: any) => {
-                      // ex.exercise_id is usually the FK to exercises table
+                      // เก็บ exercise_id (FK ที่ชี้ไปตาราง exercises)
                       if (ex.exercise_id) {
                         validExerciseIds.add(ex.exercise_id);
                       }
-                      // Fallback if structure differs
+                      // Fallback ถ้าโครงสร้างต่างจากที่คาด
                       else if (ex.id) {
                         validExerciseIds.add(ex.id);
                       }
@@ -282,43 +302,40 @@ export default function ClientProgress({ client }: ClientProgressProps) {
                 });
               }
             });
-            programFound = true;
+            programFound = true; // พบโปรแกรมแล้ว
           } catch (e) {
             console.error("Failed to fetch program details", e);
           }
         }
 
-        // D. Filter Logic
-        // If program found, only show exercises in that program.
-        // If NO program found, showing NOTHING or ALL?
-        // User said: "Show... assigned from the program...".
-        // So if no program, likely empty list or maybe keep all 'weight' ones if we want to be lenient.
-        // Let's be strict as per request: "Specific only to Weight Training exercises in assigned program".
+        // D. กรองท่าตามโปรแกรม
         let finalExercises = weightExercises;
 
         if (programFound) {
+          // ถ้ามีโปรแกรม → กรองเฉพาะท่าที่อยู่ในโปรแกรม
           finalExercises = weightExercises.filter((ex: any) =>
             validExerciseIds.has(ex.id),
           );
-          // If filtering results in empty (e.g. program has no weight exercises), fallback to all
+          // ถ้ากรองแล้วว่าง (โปรแกรมไม่มีท่า weight) → ใช้ทั้งหมดแทน
           if (finalExercises.length === 0) {
             finalExercises = weightExercises;
           }
         } else {
-          // Fallback: If no program assigned, show ALL weight exercises
+          // ไม่มีโปรแกรม → แสดงท่า Weight Training ทั้งหมด
           finalExercises = weightExercises;
         }
 
-        // E. Map to Dropdown Format
+        // E. แปลงเป็น format สำหรับ Dropdown (id ใช้คำนำหน้า "one_rm_" เพื่อแยก metric ประเภท 1RM)
         const mapped = finalExercises.map((ex: any) => ({
-          id: `one_rm_${ex.id}`,
-          label: ex.name,
-          unit: "kg",
+          id: `one_rm_${ex.id}`, // prefix "one_rm_" + exercise ID
+          label: ex.name, // ชื่อท่า เช่น "Bench Press"
+          unit: "kg", // หน่วยเป็น kg ทั้งหมด
         }));
 
+        // เก็บรายการท่าเข้า state สำหรับแสดงใน dropdown
         setStrengthExercises(mapped);
 
-        // Set default selection
+        // ตั้งค่าเริ่มต้นใน dropdown เป็นท่าแรกในรายการ
         if (mapped.length > 0) {
           setStrengthInput((prev) => ({ ...prev, exercise: mapped[0].id }));
         }
@@ -326,10 +343,13 @@ export default function ClientProgress({ client }: ClientProgressProps) {
         console.error("Failed to load exercises", err);
       }
     };
+    // เรียกทันทีที่ component mount + เมื่อ client.id หรือ currentProgram เปลี่ยน
     fetchExercisesAndProgram();
   }, [client.id, client.currentProgram]);
 
-  // 2. Auto-calculate BMI
+  /* useEffect: Auto-calculate BMI
+     ใช้สำหรับ: หน้า Update Modal → แท็บ "ร่างกาย & BMI"
+     หน้าที่: คำนวณ BMI อัตโนมัติเมื่อผู้ใช้กรอกน้ำหนัก + ส่วนสูง → แสดงผลใน BMI Widget */
   useEffect(() => {
     const w = parseFloat(formData.weight);
     const h = parseFloat(formData.height);
@@ -341,7 +361,9 @@ export default function ClientProgress({ client }: ClientProgressProps) {
     }
   }, [formData.weight, formData.height]);
 
-  // 3. VO2 Max (Cooper) Calculation
+  /* useEffect: VO2 Max (Cooper) Calculation
+     ใช้สำหรับ: หน้า Update Modal → แท็บ "หัวใจ-ปอด (VO₂)"
+     หน้าที่: คำนวณ VO₂ Max จากระยะวิ่ง 12 นาที (Cooper Test) → แสดงผลใน Cooper Test Calculator */
   useEffect(() => {
     const dist = parseFloat(cooperDist);
     if (dist > 0) {
@@ -357,10 +379,19 @@ export default function ClientProgress({ client }: ClientProgressProps) {
       }));
     } else {
       setCalculatedVO2(null);
+      setFormData((prev) => {
+        const newData = { ...prev };
+        delete newData.vo2_max;
+        delete newData.distance_12min;
+        return newData;
+      });
     }
   }, [cooperDist]);
 
-  // 4. 1RM Calculation
+  /* useEffect: 1RM Calculation
+     ใช้สำหรับ: หน้า Update Modal → แท็บ "ความแข็งแรง (1RM)"
+     หน้าที่: คำนวณ Estimated 1RM จาก น้ำหนัก × (1 + จำนวนครั้ง/30)
+     แสดงผลใน 1RM Calculator widget */
   useEffect(() => {
     const w = parseFloat(strengthInput.weight);
     const r = parseFloat(strengthInput.reps);
@@ -376,69 +407,119 @@ export default function ClientProgress({ client }: ClientProgressProps) {
       }));
     } else {
       setCalculated1RM(null);
+      setFormData((prev) => {
+        const newData = { ...prev };
+        if (strengthInput.exercise) {
+          delete newData[strengthInput.exercise];
+        }
+        return newData;
+      });
     }
   }, [strengthInput]);
 
   // --- Helper Functions ---
 
+  /* ฟังก์ชัน: generateDemoData
+     ใช้สำหรับ: ทุกหน้า (fallback)
+     หน้าที่: สร้างข้อมูลจำลอง (demo data) เมื่อ API โหลดไม่สำเร็จ → ใช้แสดงกราฟและ cards ตัวอย่าง */
   const generateDemoData = () => {
+    // สร้าง object เปล่าสำหรับเก็บ demo data ทุก metric
     const demo: Record<string, ProgressRecord[]> = {};
+    // ดึงชื่อ metric ทั้งหมดจาก config (weight, body_fat, muscle, bmi ฯลฯ)
     const keys = Object.keys(METRIC_CONFIG);
 
+    // สร้างข้อมูลจำลองสำหรับแต่ละ metric
     keys.forEach((key) => {
-      demo[key] = [];
-      let baseValue = key === "weight" ? 75 : 50;
-      // ปรับค่าเริ่มต้นตามประเภทข้อมูลเพื่อให้กราฟดูสมจริง
-      if (key === "body_fat") baseValue = 25;
-      if (key === "bmi") baseValue = 24;
+      demo[key] = []; // สร้าง array ว่างสำหรับ metric นี้
+      // กำหนดค่าเริ่มต้น (base) ให้สมจริงตามประเภท
+      let baseValue = key === "weight" ? 75 : 50; // น้ำหนักเริ่ม 75kg, อื่นๆ 50
+      if (key === "body_fat") baseValue = 25; // ไขมัน 25%
+      if (key === "bmi") baseValue = 24; // BMI 24 (ปกติ)
 
+      // สร้าง 6 จุดข้อมูล (ย้อนหลัง 5 เดือน → ปัจจุบัน)
       for (let i = 5; i >= 0; i--) {
         const d = new Date();
-        d.setMonth(d.getMonth() - i);
+        d.setMonth(d.getMonth() - i); // เดือนย้อนหลัง i เดือน
+        // สุ่มค่า: base + สุ่ม(-1 ถึง +1) + trend ลดเล็กน้อย (i*0.2 ทำให้ค่าอดีตสูงกว่าปัจจุบัน)
         const val = baseValue + (Math.random() * 2 - 1) + i * 0.2;
         demo[key].push({
-          date: d.toISOString(),
-          value: parseFloat(val.toFixed(1)),
+          date: d.toISOString(), // วันที่ในรูปแบบ ISO
+          value: parseFloat(val.toFixed(1)), // ปัดเศษ 1 ตำแหน่ง
         });
       }
     });
+    // เก็บ demo data ใน state → UI จะแสดงกราฟตัวอย่าง
     setMetricsData(demo);
   };
 
+  /* ฟังก์ชัน: handleInputChange
+     ใช้สำหรับ: หน้า Update Modal → ทุกแท็บ (ทุก input field ในฟอร์ม)
+     หน้าที่: อัปเดตค่าใน formData เมื่อผู้ใช้พิมพ์ตัวเลข (ป้องกันค่าติดลบ) */
   const handleInputChange = (key: string, value: string) => {
+    // key = ชื่อ metric เช่น "weight", "body_fat"
+    // value = ค่าที่ผู้ใช้พิมพ์ เช่น "72.5"
+
+    // ป้องกันค่าติดลบ: ถ้า value มีเครื่องหมาย "-" → ไม่อัปเดต (ไม่มี metric ที่ค่าติดลบ)
     if (value.includes("-")) return;
+    // อัปเดต formData: ใช้ spread operator คงค่าเดิม + เพิ่ม/แก้เฉพาะ key ที่เปลี่ยน
+    // เช่น prev = {weight:"70"} → key="body_fat", value="20" → result = {weight:"70", body_fat:"20"}
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
+  /* ฟังก์ชัน: getTrendColor
+     ใช้สำหรับ: หน้า Overview (Metric Cards - ลูกศรขึ้น/ลง) + หน้า Update Modal (Trend Badge ข้าง input)
+     หน้าที่: กำหนดสีของ trend indicator ตามเป้าหมายลูกค้า
+     เช่น ลดน้ำหนัก → น้ำหนักลด = สีเขียว, สร้างกล้ามเนื้อ → กล้ามเนื้อเพิ่ม = สีเขียว */
   const getTrendColor = (key: string, diff: number) => {
+    // key = ชื่อ metric ที่ต้องการเช็ค เช่น "weight", "muscle", "body_fat"
+    // diff = ผลต่างระหว่างค่าล่าสุดกับค่าก่อนหน้า (เช่น -2 = ลดลง 2, +3 = เพิ่มขึ้น 3)
+
+    // ถ้า diff === 0 (ค่าเท่าเดิม ไม่เปลี่ยนแปลง) → คืนสีเทา (ไม่ดีไม่แย่)
     if (diff === 0) return "text-gray-500 bg-gray-100";
 
-    // Logic สี: ถ้าลดน้ำหนัก ค่าน้อยลง = ดี (สีเขียว)
+    // ดึงเป้าหมายของลูกค้า: ลอง primaryGoal ก่อน → ถ้าไม่มีใช้ goal → ถ้าไม่มีเลยใช้ "general_health"
     const goal = client.primaryGoal || client.goal || "general_health";
+
+    // กลุ่มที่ 1: metric ที่ "ยิ่งน้อยยิ่งดี" (ลดน้ำหนัก/ไขมัน/รอบเอว/BMI)
+    // ใช้เฉพาะกับเป้าหมาย weight_loss เท่านั้น
     const minimizeMetrics = ["weight", "body_fat", "waist", "bmi"];
 
+    // เช็คว่า metric นี้อยู่ในกลุ่ม "ยิ่งน้อยยิ่งดี" + เป้าหมายเป็นลดน้ำหนัก
     if (minimizeMetrics.includes(key) && goal === "weight_loss") {
       return diff < 0
-        ? "text-green-600 bg-green-100"
-        : "text-red-600 bg-red-100";
+        ? "text-green-600 bg-green-100" // diff < 0 = ค่าลดลง = ดี → สีเขียว ✅
+        : "text-red-600 bg-red-100"; // diff > 0 = ค่าเพิ่มขึ้น = ไม่ดี → สีแดง ❌
     }
 
-    // ค่าที่ยิ่งเยอะยิ่งดี (กล้ามเนื้อ)
+    // กลุ่มที่ 2: metric ที่ "ยิ่งเยอะยิ่งดี" (กล้ามเนื้อ/รอบอก/แขน)
+    // ใช้ได้ทุกเป้าหมาย (ไม่เช็ค goal)
     const maximizeMetrics = ["muscle", "chest", "arm_left", "arm_right"];
     if (maximizeMetrics.includes(key)) {
       return diff > 0
-        ? "text-green-600 bg-green-100"
-        : "text-yellow-600 bg-yellow-100";
+        ? "text-green-600 bg-green-100" // diff > 0 = ค่าเพิ่มขึ้น = ดี → สีเขียว ✅
+        : "text-yellow-600 bg-yellow-100"; // diff < 0 = ค่าลดลง = ควรระวัง → สีเหลือง ⚠️ (ไม่ใช่สีแดง เพราะอาจเป็นเรื่องปกติ)
     }
 
+    // กลุ่มที่ 3: metric อื่นๆ ที่ไม่จัดกลุ่ม (เช่น heart_rate, height, thigh)
+    // → คืนสีน้ำเงิน = แสดงว่ามีการเปลี่ยนแปลง แต่ไม่ตัดสินว่าดี/แย่
     return "text-blue-600 bg-blue-100";
   };
 
+  /* ฟังก์ชัน: handleEditMetric
+     ใช้สำหรับ: หน้า Details → เมื่อกดที่รายการ metric
+     หน้าที่: เปิด Update Modal พร้อม pre-fill ค่าเดิม + สลับไปแท็บที่ตรงกับ metric ที่กด
+     เช่น กด "รอบเอว" → เปิด Modal ที่แท็บ "สัดส่วน" + กรอกค่ารอบเอวเดิมให้ */
   const handleEditMetric = (key: string, value: any) => {
-    // 1. Determine Tab
-    let tab = "basic";
+    // key = ชื่อ metric เช่น "weight", "waist", "one_rm_5"
+    // value = ค่าล่าสุดที่บันทึกไว้ เช่น 70 หรือ null
+
+    // 1. กำหนดแท็บที่ตรงกับ metric นี้
+    // เพื่อเปิด Modal ไปที่แท็บที่ถูกต้องทันที
+    let tab = "basic"; // ค่าเริ่มต้น = basic
+    // ถ้าเป็น metric พื้นฐาน (น้ำหนัก/ส่วนสูง/BMI/ไขมัน/กล้ามเนื้อ) → แท็บ basic
     if (["weight", "height", "bmi", "body_fat", "muscle"].includes(key))
       tab = "basic";
+    // ถ้าเป็น metric สัดส่วน (รอบเอว/สะโพก/รอบอก/แขน/ต้นขา) → แท็บ body
     else if (
       [
         "waist",
@@ -453,64 +534,87 @@ export default function ClientProgress({ client }: ClientProgressProps) {
       ].includes(key)
     )
       tab = "body";
+    // ถ้าเป็น metric หัวใจ-ปอด (VO₂/ระยะวิ่ง/ชีพจรหัวใจ) → แท็บ cardio
     else if (["vo2_max", "distance_12min", "resting_heart_rate"].includes(key))
       tab = "cardio";
+    // ถ้าชื่อขึ้นต้นด้วย "one_rm_" หรือ "strength" → แท็บ strength
     else if (key.startsWith("one_rm_") || key.startsWith("strength"))
       tab = "strength";
 
-    // 2. Pre-fill Data
+    // 2. Pre-fill ค่าเดิมลงใน formData
+    // แปลงค่าเป็น string (ถ้าเป็น "-" หรือ null ให้ใช้ "" แทน)
     const valStr = value !== "-" && value !== null ? value.toString() : "";
+    // เพิ่มหรือแก้ค่าใน formData สำหรับ key นี้
     setFormData((prev) => ({ ...prev, [key]: valStr }));
 
-    // 3. Handle Special Cases (Manual Strength)
+    // 3. กรณีพิเศษ: ถ้าเป็นท่า Strength แบบ Manual (one_rm_xxx)
     if (tab === "strength" && key.startsWith("one_rm_")) {
-      // If it's a dynamic manual metric, ensure it's in the selected list
+      // ต้องอยู่ใน selectedManualMetrics ด้วย เพื่อแสดง input field
       if (!selectedManualMetrics.includes(key)) {
         setSelectedManualMetrics((prev) => [...prev, key]);
       }
-      // Also ensure strengthInput dropdown (if used) matches?
-      // Actually spread 'one_rm_' id to select might be needed if using the top calculator,
-      // but for manual list input it just needs to be in selectedManualMetrics.
     }
 
-    // 4. Open Modal
-    setActiveTab(tab);
-    setShowUpdateModal(true);
+    // 4. เปิด Modal ที่แท็บที่ถูกต้อง
+    setActiveTab(tab); // สลับไปแท็บที่ตรงกับ metric
+    setShowUpdateModal(true); // เปิด Modal
   };
 
+  /* ฟังก์ชัน: handleSubmit
+     ใช้สำหรับ: หน้า Update Modal → ปุ่ม "บันทึกข้อมูล" (Footer)
+     หน้าที่: รวบรวมข้อมูลจาก formData + BMI ที่คำนวณ → ส่ง POST ไป API
+     → อัปเดต state ให้กราฟและ cards ขยับทันทีโดยไม่ต้อง refresh หน้า */
   const handleSubmit = async () => {
+    // เช็คว่ามีข้อมูลอย่างน้อย 1 รายการหรือไม่ (ป้องกันกดบันทึกโดยไม่กรอกอะไรเลย)
     if (Object.keys(formData).length === 0) {
       toast.error("กรุณากรอกข้อมูลอย่างน้อย 1 รายการ");
       return;
     }
 
+    // เปิด loading state → ปุ่มจะแสดง spinner
     setLoading(true);
     try {
-      const payload = Object.entries(formData)
-        .filter(([_, val]) => val !== "")
-        .map(([key, val]) => ({
-          type: key,
-          value: parseFloat(val),
-          date: toRFC3339String(new Date(recordDate)),
-        }));
+      // ใช้ Map เพื่อป้องกัน key ซ้ำ (เช่น BMI อาจถูกเพิ่มทั้งจาก formData + calculatedBMI)
+      const payloadMap = new Map<
+        string,
+        { type: string; value: number; date: string }
+      >();
 
+      // วนลูปทุกค่าที่กรอกในฟอร์ม → แปลงเป็น {type, value, date}
+      Object.entries(formData).forEach(([key, val]) => {
+        if (val !== "") {
+          // ข้าม field ที่ว่าง (ผู้ใช้ไม่ได้กรอก)
+          payloadMap.set(key, {
+            type: key, // ชื่อ metric
+            value: parseFloat(val as string), // แปลง string → number
+            date: toRFC3339String(new Date(recordDate)), // วันที่บันทึกในรูปแบบ RFC3339
+          });
+        }
+      });
+
+      // ถ้ามีค่า BMI ที่คำนวณได้ → เพิ่ม/แทนใน payload (อาจทับค่าที่กรอกมือ)
       if (calculatedBMI) {
-        payload.push({
+        payloadMap.set("bmi", {
           type: "bmi",
           value: calculatedBMI,
           date: toRFC3339String(new Date(recordDate)),
         });
       }
 
-      // API Call
+      // แปลง Map เป็น Array สำหรับส่ง API
+      const payload = Array.from(payloadMap.values());
+
+      // ส่งข้อมูลทั้งหมดไป API ในครั้งเดียว
       await api.post(`/clients/${client.id}/metrics`, payload);
 
       toast.success("บันทึกข้อมูลเรียบร้อยแล้ว");
 
-      // Update Local State เพื่อให้กราฟขยับทันทีไม่ต้อง Refresh
+      // อัปเดต state โดยตรง (ไม่ต้อง reload หน้า) → กราฟจะขยับทันที
       const updatedData = { ...metricsData };
       payload.forEach((p) => {
+        // ถ้ายังไม่มี array สำหรับ metric นี้ → สร้างใหม่
         if (!updatedData[p.type]) updatedData[p.type] = [];
+        // เพิ่มค่าใหม่เข้า array + เรียงตามวันที่ใหม่
         updatedData[p.type] = [
           ...updatedData[p.type],
           { date: p.date, value: p.value },
@@ -518,53 +622,68 @@ export default function ClientProgress({ client }: ClientProgressProps) {
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
         );
       });
-      setMetricsData(updatedData);
+      setMetricsData(updatedData); // อัปเดต state → กราฟ re-render
 
+      // หน่วง 1.5 วินาที แล้วปิด Modal + reset ฟอร์ม
+      // (หน่วงเพื่อให้ผู้ใช้เห็น toast "บันทึกสำเร็จ" ก่อนปิด)
       setTimeout(() => {
-        setShowUpdateModal(false);
-        setFormData({});
-        setCalculatedBMI(null);
+        setShowUpdateModal(false); // ปิด Modal
+        setFormData({}); // ล้างฟอร์ม
+        setCalculatedBMI(null); // reset BMI
       }, 1500);
     } catch (e) {
       console.error("Failed to save metrics", e);
       toast.error("เกิดข้อผิดพลาดในการบันทึก");
     } finally {
-      setLoading(false);
+      setLoading(false); // ปิด loading ไม่ว่าจะสำเร็จหรือ error
     }
   };
 
   // --- Render Sub-Components ---
 
+  /* ฟังก์ชัน: renderMiniChart
+     ใช้สำหรับ: หน้า Update Modal → ทุกแท็บ (ไอคอน 📊 ข้าง input field)
+     หน้าที่: แสดง Mini Bar Chart popup ลอยเล็กๆ แสดงประวัติย้อนหลัง 10 จุดของ metric นั้น
+     เปิด/ปิดโดยกดไอคอนกราฟข้าง input */
   const renderMiniChart = (metricKey: string) => {
+    // ดึงข้อมูลประวัติของ metric นี้ ถ้าไม่มีใช้ array ว่าง
     const data = metricsData[metricKey] || [];
+    // ถ้าไม่มีข้อมูลเลย → แสดงข้อความ "ไม่มีข้อมูล"
     if (data.length === 0)
       return (
         <div className="p-4 text-center text-xs text-gray-400">ไม่มีข้อมูล</div>
       );
 
+    // คำนวณ min/max สำหรับ normalize ความสูงของแท่ง
+    // *0.95 และ *1.05 เพื่อเว้นช่องว่างบน-ล่างให้กราฟดูสวย
     const min = Math.min(...data.map((d) => d.value)) * 0.95;
     const max = Math.max(...data.map((d) => d.value)) * 1.05;
-    const range = max - min || 1;
+    const range = max - min || 1; // ป้องกันหาร 0 ถ้า min === max
 
     return (
+      // Container: กล่องลอย (absolute) ด้านขวาของ input
       <div className="bg-white p-3 rounded-xl shadow-lg border border-gray-100 w-48 absolute z-50 mt-2 right-0">
+        {/* Header: ชื่อ + ปุ่มปิด (X) */}
         <div className="flex justify-between mb-2">
           <span className="text-xs font-bold text-gray-600">
             ประวัติย้อนหลัง
           </span>
+          {/* กดปุ่ม X → ปิด popup โดยตั้ง activeGraphMetric เป็น null */}
           <button onClick={() => setActiveGraphMetric(null)}>
             <X size={12} />
           </button>
         </div>
+        {/* กราฟแท่ง: แสดง 10 จุดล่าสุด */}
         <div className="h-16 flex items-end gap-1">
           {data.slice(-10).map((d, i) => {
+            // คำนวณ % ความสูงของแท่ง (normalize เป็น 0-100%)
             const h = ((d.value - min) / range) * 100;
             return (
               <div
                 key={i}
                 className="flex-1 bg-blue-500 rounded-t opacity-80"
-                style={{ height: `${Math.max(h, 10)}%` }}
-                title={`${d.value}`}
+                style={{ height: `${Math.max(h, 10)}%` }} // ขั้นต่ำ 10% ไม่ให้แท่งหายไป
+                title={`${d.value}`} // hover แสดงค่าจริง
               />
             );
           })}
@@ -573,54 +692,74 @@ export default function ClientProgress({ client }: ClientProgressProps) {
     );
   };
 
+  /* ฟังก์ชัน: renderInput
+     ใช้สำหรับ: หน้า Update Modal → ทุกแท็บ
+     หน้าที่: render input field สำหรับกรอกค่า metric แต่ละตัว พร้อมด้วย:
+       - Label + Icon ด้านบน
+       - Placeholder แสดงค่าล่าสุด
+       - Trend Badge (ลูกศรขึ้น/ลง + สี) เมื่อกรอกค่าใหม่ เทียบกับค่าเดิม
+       - ปุ่มเปิด Mini Chart popup
+     ถูกเรียกใช้ซ้ำๆ ในทุกแท็บ (Basic, Body, Cardio, Strength) */
   const renderInput = (key: string, required = false) => {
+    // key = ชื่อ metric เช่น "weight", "body_fat", "one_rm_5"
+    // required = ถ้า true จะแสดง * สีแดงข้าง label
+
+    // ดึง config (label, unit, icon) จาก METRIC_CONFIG
     let config = METRIC_CONFIG[key];
 
-    // If not in static config, check dynamic strength exercises
+    // ถ้าไม่มีใน static config → ค้นหาจาก dynamic strength exercises
+    // (metric แบบ 1RM ที่สร้างจากโปรแกรม จะไม่อยู่ใน METRIC_CONFIG)
     if (!config) {
       const dynamicEx = strengthExercises.find((e) => e.id === key);
       if (dynamicEx) {
         config = {
-          label: `1RM ${dynamicEx.label}`,
-          unit: dynamicEx.unit,
-          icon: Dumbbell,
+          label: `1RM ${dynamicEx.label}`, // เช่น "1RM Bench Press"
+          unit: dynamicEx.unit, // "kg"
+          icon: Dumbbell, // ไอคอนดัมเบล
         };
       } else {
-        // Fallback
+        // Fallback สุดท้าย ถ้าหาไม่เจอเลย
         config = {
-          label: key,
+          label: key, // ใช้ชื่อ key ดิบ
           unit: "",
           icon: Activity,
         };
       }
     }
-    const Icon = config.icon;
-    const history = metricsData[key] || [];
+    const Icon = config.icon; // ไอคอนสำหรับแสดงข้าง label
+    const history = metricsData[key] || []; // ประวัติทั้งหมดของ metric นี้
+    // ดึงค่าล่าสุดจากประวัติ (ใช้แสดงเป็น placeholder)
     const lastValue =
       history.length > 0 ? history[history.length - 1].value : null;
 
-    // คำนวณ Trend Real-time
+    // คำนวณ Trend Badge แบบ Real-time (เปรียบเทียบค่าที่กำลังกรอก vs ค่าเดิม)
     const currentValue = formData[key] ? parseFloat(formData[key]) : null;
-    let trendBadge = null;
+    let trendBadge = null; // เริ่มต้นไม่มี badge
 
+    // ถ้ามีทั้งค่าปัจจุบัน (กรอกอยู่) และค่าเดิม → คำนวณ diff + สร้าง badge
     if (currentValue !== null && lastValue !== null) {
-      const diff = currentValue - lastValue;
-      const colorClass = getTrendColor(key, diff);
+      const diff = currentValue - lastValue; // ผลต่าง
+      const colorClass = getTrendColor(key, diff); // สีตามเป้าหมาย
+      // เลือกไอคอน: ขึ้น/ลง/เท่าเดิม
       const TrendIcon = diff > 0 ? TrendingUp : diff < 0 ? TrendingDown : Minus;
 
+      // สร้าง Trend Badge (ลอยอยู่ข้าง input)
       trendBadge = (
         <div
           className={`absolute right-14 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${colorClass}`}
         >
           <TrendIcon size={10} />
           {diff > 0 ? "+" : ""}
+          {/* ถ้าค่าเพิ่ม แสดง "+" นำหน้า */}
           {diff.toFixed(1)}
+          {/* แสดงผลต่าง เช่น +2.5 หรือ -1.3 */}
         </div>
       );
     }
 
     return (
       <div className="relative group">
+        {/* Label: ไอคอน + ชื่อ metric + * (ถ้า required) */}
         <label className="text-sm font-bold text-navy-900 mb-1.5 flex items-center gap-1.5">
           <Icon size={14} className="text-navy-600" />
           {config.label}
@@ -628,37 +767,43 @@ export default function ClientProgress({ client }: ClientProgressProps) {
         </label>
 
         <div className="relative flex items-center">
+          {/* Input field: type=number, step=0.1, min=0 */}
           <input
             type="number"
             step="0.1"
             min="0"
             value={formData[key] || ""}
-            onChange={(e) => handleInputChange(key, e.target.value)}
-            onFocus={() => setActiveGraphMetric(null)}
-            placeholder={lastValue ? `${lastValue}` : "0.0"}
+            onChange={(e) => handleInputChange(key, e.target.value)} // เมื่อพิมพ์ → อัปเดต formData
+            onFocus={() => setActiveGraphMetric(null)} // เมื่อ focus → ปิด mini chart ที่เปิดอยู่
+            placeholder={lastValue ? `${lastValue}` : "0.0"} // แสดงค่าเดิมเป็น placeholder
             className={`w-full pl-3 pr-16 py-2.5 border rounded-xl text-navy-900 focus:ring-2 focus:ring-navy-900/10 focus:border-navy-900 outline-none transition-all
               ${formData[key] ? "border-navy-900 bg-white shadow-sm" : "border-slate-200 bg-slate-50 focus:bg-white"}
             `}
           />
 
+          {/* Trend Badge ลอยอยู่ข้าง input (ถ้ามี) */}
           {trendBadge}
 
+          {/* ด้านขวาสุด: แสดงหน่วย + ปุ่มเปิด Mini Chart */}
           <div className="absolute right-2 flex items-center gap-2">
+            {/* แสดงหน่วย (เช่น "kg") เฉพาะเมื่อไม่มี trendBadge */}
             {!trendBadge && (
               <span className="text-xs text-gray-400 font-medium">
                 {config.unit}
               </span>
             )}
+            {/* ปุ่มไอคอนกราฟ: กด → เปิด/ปิด Mini Chart popup */}
             <div className="relative">
               <button
                 onClick={() =>
                   setActiveGraphMetric(activeGraphMetric === key ? null : key)
                 }
                 className={`p-1.5 rounded-md ${history.length > 0 ? "text-blue-400 hover:bg-blue-50" : "text-gray-200"}`}
-                disabled={history.length === 0}
+                disabled={history.length === 0} // ถ้าไม่มีข้อมูล → ปิดปุ่ม
               >
                 <LineChartIcon size={16} />
               </button>
+              {/* แสดง Mini Chart popup ถ้า metric นี้ถูกเลือก */}
               {activeGraphMetric === key && renderMiniChart(key)}
             </div>
           </div>
@@ -667,175 +812,12 @@ export default function ClientProgress({ client }: ClientProgressProps) {
     );
   };
 
-  // --- Main Render ---
-
-  // --- Helper to Normalize Goal (Thai/English Support) ---
-  const normalizeGoal = (g: string | undefined) => {
-    if (!g) return "general_health";
-    const lower = g.toLowerCase();
-    if (
-      lower.includes("ลดน้ำหนัก") ||
-      lower.includes("weight") ||
-      lower.includes("fat loss")
-    )
-      return "weight_loss";
-    if (
-      lower.includes("กล้ามเนื้อ") ||
-      lower.includes("muscle") ||
-      lower.includes("hypertrophy")
-    )
-      return "muscle_building";
-    if (
-      lower.includes("แข็งแรง") ||
-      lower.includes("strength") ||
-      lower.includes("power")
-    )
-      return "strength";
-    return "general_health";
+  const dashboardMetrics: any = {
+    primary: ["weight", "bmi"],
+    secondary: ["body_fat", "waist"],
   };
-
-  const goalKey = normalizeGoal(client.primaryGoal || client.goal);
-  // Fallback to general health if goal not found
-  // --- Render Sub-Components ---
-
-  const renderMainChart = () => {
-    // 1. Identify which metrics to chart
-    let chartMetrics: string[] = [];
-    if (client.primaryGoal === "strength" || client.goal === "strength") {
-      // Special logic for strength: Show 1RM of top 3 active exercises
-      const activeStrength = Object.keys(metricsData)
-        .filter((k) => k.startsWith("one_rm_") || k.startsWith("strength"))
-        .sort(
-          (a, b) => (metricsData[b].length || 0) - (metricsData[a].length || 0),
-        ) // Sort by data points count
-        .slice(0, 3);
-
-      if (activeStrength.length > 0) {
-        chartMetrics = activeStrength;
-      } else {
-        // Fallback
-        chartMetrics = ["weight", "muscle"];
-      }
-    } else {
-      // Default to primary goal metrics
-      chartMetrics = dashboardMetrics.primary;
-    }
-
-    if (chartMetrics.length === 0) return null;
-
-    // 2. Prepare Data (Combine by Date)
-    const dateMap: Record<string, any> = {};
-    chartMetrics.forEach((key) => {
-      const history = metricsData[key] || [];
-      history.forEach((rec) => {
-        const dateStr = rec.date.split("T")[0];
-        if (!dateMap[dateStr]) {
-          dateMap[dateStr] = {
-            date: dateStr,
-            displayDate: new Date(rec.date).toLocaleDateString("th-TH", {
-              day: "numeric",
-              month: "short",
-            }),
-          };
-        }
-        dateMap[dateStr][key] = rec.value;
-      });
-    });
-
-    const chartData = Object.values(dateMap).sort(
-      (a: any, b: any) =>
-        new Date(a.date).getTime() - new Date(b.date).getTime(),
-    );
-
-    if (chartData.length < 2) return null; // Not enough data to show a line
-
-    return (
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mb-6">
-        <h3 className="text-lg font-bold text-navy-900 mb-6 flex items-center gap-2">
-          <TrendingUp className="text-navy-600" size={20} />
-          แนวโน้มพัฒนาการ (
-          {chartMetrics
-            .map(
-              (k) =>
-                METRIC_CONFIG[k]?.label ||
-                strengthExercises.find((e) => e.id === k)?.label ||
-                k,
-            )
-            .join(", ")}
-          )
-        </h3>
-        <div className="h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                vertical={false}
-                stroke="#E2E8F0"
-              />
-              <XAxis
-                dataKey="displayDate"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "#94A3B8", fontSize: 12 }}
-                dy={10}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "#94A3B8", fontSize: 12 }}
-              />
-              <Tooltip
-                contentStyle={{
-                  borderRadius: "12px",
-                  border: "none",
-                  boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                }}
-              />
-              <Legend wrapperStyle={{ paddingTop: "20px" }} />
-              {chartMetrics.map((key, index) => {
-                const config = METRIC_CONFIG[key] || { label: key };
-                // Try to find dynamic label
-                let label = config.label;
-                if (!METRIC_CONFIG[key]) {
-                  const dyn = strengthExercises.find((e) => e.id === key);
-                  if (dyn) label = dyn.label;
-                }
-
-                const colors = ["#1e293b", "#ea580c", "#3b82f6", "#10b981"]; // Navy, Orange, Blue, Emerald
-                return (
-                  <Line
-                    key={key}
-                    type="monotone"
-                    dataKey={key}
-                    name={label}
-                    stroke={colors[index % colors.length]}
-                    strokeWidth={3}
-                    dot={{
-                      r: 4,
-                      strokeWidth: 2,
-                      fill: "#fff",
-                      stroke: colors[index % colors.length],
-                    }}
-                    activeDot={{
-                      r: 6,
-                      strokeWidth: 0,
-                      fill: colors[index % colors.length],
-                    }}
-                    connectNulls
-                  />
-                );
-              })}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    );
-  };
-
-  const dashboardMetrics = GOAL_METRICS[goalKey] || GOAL_METRICS.general_health;
-
-  // Prepare data for details view
-  // Prepare data for details view
+  /* ===== เตรียมข้อมูลสำหรับหน้า Details (Metrics Details List) =====
+     รวม metrics จาก primary + secondary + ข้อมูลที่เคยบันทึก → แสดงเป็น list view */
   const allMetricKeys = Array.from(
     new Set([
       ...dashboardMetrics.primary,
@@ -875,9 +857,17 @@ export default function ClientProgress({ client }: ClientProgressProps) {
     };
   });
 
+  /* ===================================================================
+     JSX Return — โครงสร้าง UI หลักมี 3 ส่วนใหญ่:
+     1. Header (ชื่อหน้า + ปุ่ม "อัปเดตข้อมูลร่างกาย")
+     2. Content Area:
+        - currentView === "overview" → แสดง Overview Page (กราฟ + Metric Cards)
+        - currentView === "details" → แสดง Details Page (รายการ Metrics ทั้งหมด)
+     3. Update Modal (popup form บันทึกข้อมูล) — แสดงเมื่อ showUpdateModal === true
+     =================================================================== */
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6 bg-gray-50 min-h-screen font-sans">
-      {/* Header */}
+      {/* ===== ส่วน Header: แสดงชื่อหน้า + เป้าหมายลูกค้า + ปุ่มเปิด Update Modal ===== */}
       <div className="flex flex-col md:flex-row justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-2xl font-bold text-navy-900">
@@ -900,8 +890,14 @@ export default function ClientProgress({ client }: ClientProgressProps) {
           <span>อัปเดตข้อมูลร่างกาย</span>
         </button>
       </div>
-      {/* Dashboard Cards / Metrics Detail Switch */}
+      {/* ===== ส่วน Content Area: สลับระหว่าง Overview กับ Details ===== */}
       {currentView === "overview" ? (
+        /* ==========================================
+           หน้า Overview Page (currentView === "overview")
+           - Metrics Overview header + ปุ่ม "ดูรายละเอียด"
+           - กราฟแนวโน้มพัฒนาการ (renderMainChart)
+           - Metric Cards แบบ Grid (primary + secondary metrics)
+           ========================================== */
         <>
           <div className="flex justify-between items-end mb-4">
             <h2 className="text-lg font-bold text-navy-900 flex items-center gap-2">
@@ -915,9 +911,6 @@ export default function ClientProgress({ client }: ClientProgressProps) {
               ดูรายละเอียด <ChevronRight size={14} />
             </button>
           </div>
-
-          {/* Progress Chart */}
-          {renderMainChart()}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -983,7 +976,11 @@ export default function ClientProgress({ client }: ClientProgressProps) {
           </div>
         </>
       ) : (
-        /* Metrics List View */
+        /* ==========================================
+           หน้า Details Page (currentView === "details")
+           - แสดงรายการ Metrics ทั้งหมดในรูปแบบ List
+           - กดแต่ละรายการ → เรียก handleEditMetric → เปิด Update Modal
+           ========================================== */
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="p-4 border-b border-slate-100 flex items-center gap-2">
             <button
@@ -1022,7 +1019,16 @@ export default function ClientProgress({ client }: ClientProgressProps) {
         </div>
       )}
 
-      {/* Update Modal */}
+      {/* ==========================================
+           หน้า Update Modal (Popup สำหรับบันทึกข้อมูลร่างกาย)
+           - เปิดจากปุ่ม "อัปเดตข้อมูลร่างกาย" (Header) หรือกดรายการจากหน้า Details
+           - ประกอบด้วย 4 แท็บ:
+             Tab 1 "ร่างกาย & BMI"   → input น้ำหนัก, ส่วนสูง, ไขมัน, กล้ามเนื้อ + BMI Widget
+             Tab 2 "สัดส่วน"         → input ไหล่, รอบอก, รอบเอว, สะโพก, แขน, ต้นขา
+             Tab 3 "หัวใจ-ปอด (VO₂)" → Cooper Test Calculator + input VO₂ Max, Resting HR
+             Tab 4 "ความแข็งแรง (1RM)" → 1RM Calculator + Manual Record List
+           - Footer: ปุ่ม "ยกเลิก" + ปุ่ม "บันทึกข้อมูล"
+           ========================================== */}
       {showUpdateModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-hidden">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
@@ -1081,7 +1087,9 @@ export default function ClientProgress({ client }: ClientProgressProps) {
 
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/50">
-              {/* Tab 1: Basic Info & BMI */}
+              {/* ===== Tab 1: ร่างกาย & BMI =====
+                 - Input: น้ำหนัก (required), ส่วนสูง (required), ไขมัน, กล้ามเนื้อ
+                 - BMI Widget: คำนวณอัตโนมัติ + แสดงสถานะ (ผอม/สมส่วน/ท้วม) */}
               {activeTab === "basic" && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
@@ -1133,7 +1141,9 @@ export default function ClientProgress({ client }: ClientProgressProps) {
                 </div>
               )}
 
-              {/* Tab 2: Body Proportions */}
+              {/* ===== Tab 2: สัดส่วนร่างกาย (Body Proportions) =====
+                 - ท่อนบน: ไหล่, รอบอก, แขนขวา, แขนซ้าย
+                 - ท่อนล่าง: รอบเอว, สะโพก, หน้าท้อง, ต้นขาขวา, ต้นขาซ้าย */}
               {activeTab === "body" && (
                 <div className="space-y-6">
                   <div className="bg-white p-4 rounded-xl border border-gray-100">
@@ -1164,7 +1174,9 @@ export default function ClientProgress({ client }: ClientProgressProps) {
                 </div>
               )}
 
-              {/* Tab 3: Cardio (VO2 Max) */}
+              {/* ===== Tab 3: หัวใจ-ปอด VO₂ Max (Cardio) =====
+                 - Cooper Test Calculator: กรอกระยะวิ่ง 12 นาที → คำนวณ VO₂ Max อัตโนมัติ
+                 - หรือกรอก VO₂ Max / Resting HR เอง */}
               {activeTab === "cardio" && (
                 <div className="space-y-6">
                   <div className="bg-blue-50 border border-blue-100 rounded-xl p-5">
@@ -1221,7 +1233,10 @@ export default function ClientProgress({ client }: ClientProgressProps) {
                 </div>
               )}
 
-              {/* Tab 4: Strength (1RM) */}
+              {/* ===== Tab 4: ความแข็งแรง 1RM (Strength) =====
+                 - 1RM Calculator: เลือกท่า → กรอกน้ำหนัก + จำนวนครั้ง → คำนวณ Estimated 1RM
+                 - Manual Record: รายการท่าที่เลือกเพิ่มเอง สำหรับบันทึกสถิติ
+                 - ท่าในรายการมาจาก exercises ที่ assign ในโปรแกรมของลูกค้า */}
               {activeTab === "strength" && (
                 <div className="space-y-6">
                   <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5">
@@ -1242,6 +1257,8 @@ export default function ClientProgress({ client }: ClientProgressProps) {
                             setStrengthInput({
                               ...strengthInput,
                               exercise: selectedId,
+                              weight: "",
+                              reps: "",
                             });
                             handleAddManualMetric(selectedId);
                           }}
@@ -1350,7 +1367,7 @@ export default function ClientProgress({ client }: ClientProgressProps) {
               <div className="pb-20"></div>
             </div>
 
-            {/* Modal Footer */}
+            {/* ===== Modal Footer: ปุ่ม "ยกเลิก" + ปุ่ม "บันทึกข้อมูล" (เรียก handleSubmit) ===== */}
             <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 rounded-b-2xl">
               <button
                 onClick={() => setShowUpdateModal(false)}

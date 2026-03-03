@@ -11,9 +11,13 @@ import {
   X,
   Dumbbell,
   AlertTriangle,
+  Settings,
+  MoreHorizontal,
+  Repeat,
+  Trash,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -44,17 +48,88 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { toRFC3339String } from "@/lib/utils";
+import {
+  DEFAULT_TRACKING_FIELDS,
+  normalizeTrackingFieldKey,
+} from "@/types/exercise";
 import type { Client } from "../ClientProfilePage";
 
 interface ClientScheduleProps {
   client: Client;
 }
 
-// Interface สำหรับข้อมูล Session (จาก API)
+const FIELD_CONFIG: Record<
+  string,
+  { label: string; placeholder: string; type: string }
+> = {
+  reps: { label: "REPS", placeholder: "10", type: "text" },
+  weight: { label: "WEIGHT", placeholder: "0", type: "number" },
+  tempo: { label: "Tempo", placeholder: "3-1-1", type: "text" },
+  rest: { label: "REST", placeholder: "00:00", type: "text" },
+  rpe: { label: "RPE", placeholder: "1-10", type: "number" },
+  time: { label: "Time", placeholder: "00:00", type: "text" },
+  speed: { label: "Speed", placeholder: "0", type: "number" },
+  cadence: { label: "Cadence", placeholder: "0", type: "number" },
+  distance_long: { label: "Distance (L)", placeholder: "0", type: "number" },
+  distance_short: { label: "Distance (S)", placeholder: "0", type: "number" },
+  one_rm: { label: "%1RM", placeholder: "0", type: "number" },
+  rir: { label: "RIR", placeholder: "0", type: "number" },
+  heart_rate: { label: "Heart Rate", placeholder: "0", type: "number" },
+  hr_zone: { label: "%HR", placeholder: "0", type: "number" },
+  watts: { label: "Watts", placeholder: "0", type: "number" },
+  rpm: { label: "RPM", placeholder: "0", type: "number" },
+  rounds: { label: "Rounds", placeholder: "0", type: "number" },
+  sets: { label: "Sets", placeholder: "3", type: "number" },
+  notes: { label: "Notes", placeholder: "tempo, technique...", type: "text" },
+  work_time: { label: "Work", placeholder: "00:30", type: "text" },
+  rest_time: { label: "Rest", placeholder: "00:10", type: "text" },
+};
+
+const formatTimeInput = (value: string) => {
+  const clean = value.replace(/[^0-9]/g, "");
+  if (clean.length === 3) return `${clean.slice(0, 1)}:${clean.slice(1)}`;
+  if (clean.length >= 4) return `${clean.slice(0, 2)}:${clean.slice(2, 4)}`;
+  return clean;
+};
+
+const parseTimeToSeconds = (val: any): number => {
+  if (val === null || val === undefined || val === "") return 0;
+  if (typeof val === "number") return val;
+  const str = String(val).trim();
+  if (str.includes(":")) {
+    const parts = str.split(":");
+    return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+  }
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+};
+
+const getFields = (data: any | undefined) => {
+  if (!data) return DEFAULT_TRACKING_FIELDS["strength"];
+  if (data.trackingFields && data.trackingFields.length > 0)
+    return data.trackingFields;
+  return (
+    DEFAULT_TRACKING_FIELDS[data.category || "strength"] ||
+    DEFAULT_TRACKING_FIELDS["strength"]
+  );
+};
+
 interface Session {
   id: number;
   title: string;
@@ -65,25 +140,21 @@ interface Session {
 
 export default function ClientSchedule({ client }: ClientScheduleProps) {
   const navigate = useNavigate();
-  // State เก็บข้อมูลจริง
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Filter & Sort State
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("date-desc");
-
-  // Reschedule State
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
   const [sessionToReschedule, setSessionToReschedule] =
     useState<Session | null>(null);
   const [newDate, setNewDate] = useState("");
-
-  // --- Add Session State ---
   const [showAddSessionModal, setShowAddSessionModal] = useState(false);
-  const [exercisesList, setExercisesList] = useState<any[]>([]); // For Picker
+  const [exercisesList, setExercisesList] = useState<any[]>([]);
   const [showExercisePicker, setShowExercisePicker] = useState(false);
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
+  const [swapExerciseIndex, setSwapExerciseIndex] = useState<number | null>(
+    null,
+  );
 
   const [newSessionData, setNewSessionData] = useState({
     title: "",
@@ -96,9 +167,11 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
     restTime: 15,
   });
 
-  const [newSessionExercises, setNewSessionExercises] = useState<any[]>([]);
+  const [activeSectionIndex, setActiveSectionIndex] = useState<number | null>(
+    null,
+  );
+  const [newSessionSections, setNewSessionSections] = useState<any[]>([]);
 
-  // Fetch Exercises for Picker
   useEffect(() => {
     if (showAddSessionModal && exercisesList.length === 0) {
       api.get("/exercises").then((res) => {
@@ -107,13 +180,11 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
     }
   }, [showAddSessionModal]);
 
-  // 1. Fetch Sessions จาก Backend
   const fetchSessions = async () => {
     if (!client.id) return;
     try {
       setLoading(true);
       const res = await api.get(`/clients/${client.id}/sessions`);
-      // Handle potential nested structure
       const sessionsData =
         res.data?.data?.sessions || res.data?.sessions || res.data || [];
       setSessions(Array.isArray(sessionsData) ? sessionsData : []);
@@ -129,7 +200,6 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
     fetchSessions();
   }, [client.id]);
 
-  // Derived State
   const upcomingSessions = sessions
     .filter((s) => s.status === "scheduled")
     .sort(
@@ -137,32 +207,31 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
         new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
     );
 
-  const pastSessions = sessions.filter((s) => s.status === "completed");
+  const completedSessions = sessions.filter((s) => s.status === "completed");
 
-  // Logic for "Sessions List" (History + All)
+  const now = new Date();
+  const calculableSessions = sessions.filter(
+    (s) =>
+      s.status === "completed" ||
+      new Date(s.end_time).getTime() < now.getTime(),
+  );
+
+  const attendanceRate =
+    calculableSessions.length > 0
+      ? Math.round((completedSessions.length / calculableSessions.length) * 100)
+      : null;
+
   let filteredSessions = sessions;
-
   if (statusFilter !== "all") {
     filteredSessions = filteredSessions.filter(
       (s) => s.status === statusFilter,
     );
   }
-
-  filteredSessions.sort((a, b) => {
+  filteredSessions = [...filteredSessions].sort((a, b) => {
     const dateA = new Date(a.start_time).getTime();
     const dateB = new Date(b.start_time).getTime();
-
-    switch (sortBy) {
-      case "date-desc":
-        return dateB - dateA;
-      case "date-asc":
-        return dateA - dateB;
-      default:
-        return 0;
-    }
+    return sortBy === "date-asc" ? dateA - dateB : dateB - dateA;
   });
-
-  // --- Add Session Handlers ---
 
   const resetForm = () => {
     setNewSessionData({
@@ -175,88 +244,218 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
       workTime: 30,
       restTime: 15,
     });
-    setNewSessionExercises([]);
+    setNewSessionSections([]);
     setExerciseSearchTerm("");
+    setSwapExerciseIndex(null);
+    setActiveSectionIndex(null);
+  };
+
+  const getDefaultTrackingFields = (
+    exerciseId: string,
+    category: string,
+  ): string[] => {
+    const ex = exercisesList.find(
+      (e) => e.id.toString() === exerciseId.toString(),
+    );
+    if (ex?.trackingFields?.length)
+      return ex.trackingFields.map(normalizeTrackingFieldKey);
+    const cat = (category || ex?.category || "strength").toLowerCase();
+    const defaults: Record<string, string[]> = {
+      strength: ["reps", "weight", "rpe"],
+      "weight-training": ["reps", "weight", "rpe"],
+      "weight training": ["reps", "weight", "rpe"],
+      cardio: ["time", "distance", "heart_rate"],
+      flexibility: ["hold_time", "reps"],
+      plyometrics: ["reps", "rounds"],
+    };
+    return (defaults[cat] || ["reps", "weight", "rpe"]).map(
+      normalizeTrackingFieldKey,
+    );
   };
 
   const handleSelectExercise = (exId: string) => {
     const ex = exercisesList.find((e) => e.id === exId);
     if (!ex) return;
 
-    const newExercise = {
-      id: Date.now(),
-      exerciseId: ex.id,
-      name: ex.name,
-      category: ex.category || "weight",
-      sets: [
-        {
-          setNumber: 1,
-          weight: "",
-          reps: "",
-          rpe: "",
-          distance: "",
-          duration: "",
-          pace: "",
-          side: "",
-          rest: 60,
-          notes: "",
-        },
-      ],
-    };
-    setNewSessionExercises((prev) => [...prev, newExercise]);
+    const trackingFields = getDefaultTrackingFields(ex.id, ex.category);
+
+    if (activeSectionIndex === null && swapExerciseIndex === null) return;
+
+    if (swapExerciseIndex !== null && activeSectionIndex !== null) {
+      const updated = [...newSessionSections];
+      const sec = { ...updated[activeSectionIndex] };
+      sec.exercises = [...sec.exercises];
+      sec.exercises[swapExerciseIndex] = {
+        ...sec.exercises[swapExerciseIndex],
+        exerciseId: ex.id,
+        name: ex.name,
+        category: ex.category || "weight",
+        trackingFields,
+      };
+      updated[activeSectionIndex] = sec;
+      setNewSessionSections(updated);
+      setSwapExerciseIndex(null);
+      setActiveSectionIndex(null);
+    } else if (activeSectionIndex !== null) {
+      const newExercise = {
+        id: Date.now(),
+        exerciseId: ex.id,
+        name: ex.name,
+        category: ex.category || "weight",
+        trackingFields,
+        sets: [
+          {
+            setNumber: 1,
+            weight: 0,
+            reps: 0,
+            rpe: 0,
+            distance: 0,
+            duration: 0,
+            pace: 0,
+            side: "",
+            rest: 60,
+            notes: "",
+          },
+        ],
+      };
+      const updated = [...newSessionSections];
+      const sec = { ...updated[activeSectionIndex] };
+      sec.exercises = [...sec.exercises, newExercise];
+      updated[activeSectionIndex] = sec;
+      setNewSessionSections(updated);
+      setActiveSectionIndex(null);
+    }
     setShowExercisePicker(false);
     setExerciseSearchTerm("");
   };
 
-  const handleAddSet = (exerciseIndex: number) => {
-    const updated = [...newSessionExercises];
-    const currentSets = updated[exerciseIndex].sets;
+  const handleUpdateTrackingFields = (
+    sectionIndex: number,
+    exerciseIndex: number,
+    field: string,
+    isChecked: boolean,
+  ) => {
+    const updated = [...newSessionSections];
+    const sec = { ...updated[sectionIndex] };
+    sec.exercises = [...sec.exercises];
+    const exObj = { ...sec.exercises[exerciseIndex] };
+
+    let currentFields = (exObj.trackingFields || []).map(
+      normalizeTrackingFieldKey,
+    );
+    if (currentFields.length === 0)
+      currentFields = getDefaultTrackingFields(
+        exObj.exerciseId,
+        exObj.category,
+      );
+
+    const normalizedField = normalizeTrackingFieldKey(field);
+    if (isChecked) {
+      if (!currentFields.includes(normalizedField))
+        currentFields = [...currentFields, normalizedField];
+    } else {
+      currentFields = currentFields.filter(
+        (f: string) => f !== normalizedField,
+      );
+    }
+
+    exObj.trackingFields = Array.from(new Set(currentFields));
+    sec.exercises[exerciseIndex] = exObj;
+    updated[sectionIndex] = sec;
+    setNewSessionSections(updated);
+  };
+
+  const handleAddSet = (sectionIndex: number, exerciseIndex: number) => {
+    const updated = [...newSessionSections];
+    const sec = { ...updated[sectionIndex] };
+    sec.exercises = [...sec.exercises];
+    const ex = { ...sec.exercises[exerciseIndex] };
+    const currentSets = ex.sets;
     const lastSet = currentSets[currentSets.length - 1];
 
     const newSet = {
+      ...(lastSet || {}),
       setNumber: currentSets.length + 1,
-      weight: lastSet ? lastSet.weight : "",
-      reps: lastSet ? lastSet.reps : "",
-      rpe: lastSet ? lastSet.rpe : "",
-      distance: lastSet ? lastSet.distance : "",
-      duration: lastSet ? lastSet.duration : "",
-      pace: lastSet ? lastSet.pace : "",
+      weight: lastSet ? lastSet.weight : 0,
+      reps: lastSet ? lastSet.reps : 0,
+      rpe: lastSet ? lastSet.rpe : 0,
+      distance: lastSet ? lastSet.distance : 0,
+      duration: lastSet ? lastSet.duration : 0,
+      pace: lastSet ? lastSet.pace : 0,
       side: lastSet ? lastSet.side : "",
       rest: lastSet ? lastSet.rest : 60,
       notes: "",
     };
-    updated[exerciseIndex].sets.push(newSet);
-    setNewSessionExercises(updated);
+    ex.sets = [...currentSets, newSet];
+    sec.exercises[exerciseIndex] = ex;
+    updated[sectionIndex] = sec;
+    setNewSessionSections(updated);
   };
 
-  const handleRemoveSet = (exerciseIndex: number, setIndex: number) => {
-    const updated = [...newSessionExercises];
-    updated[exerciseIndex].sets.splice(setIndex, 1);
-    updated[exerciseIndex].sets.forEach((s: any, i: number) => {
+  const handleRemoveSet = (
+    sectionIndex: number,
+    exerciseIndex: number,
+    setIndex: number,
+  ) => {
+    const updated = [...newSessionSections];
+    const sec = { ...updated[sectionIndex] };
+    sec.exercises = [...sec.exercises];
+    const ex = { ...sec.exercises[exerciseIndex] };
+
+    ex.sets = ex.sets.filter((_: any, i: number) => i !== setIndex);
+    ex.sets.forEach((s: any, i: number) => {
       s.setNumber = i + 1;
     });
-    setNewSessionExercises(updated);
+
+    sec.exercises[exerciseIndex] = ex;
+    updated[sectionIndex] = sec;
+    setNewSessionSections(updated);
   };
 
-  const handleRemoveExercise = (exerciseIndex: number) => {
-    const updated = [...newSessionExercises];
-    updated.splice(exerciseIndex, 1);
-    setNewSessionExercises(updated);
+  const handleRemoveExercise = (
+    sectionIndex: number,
+    exerciseIndex: number,
+  ) => {
+    const updated = [...newSessionSections];
+    const sec = { ...updated[sectionIndex] };
+    sec.exercises = sec.exercises.filter(
+      (_: any, i: number) => i !== exerciseIndex,
+    );
+    updated[sectionIndex] = sec;
+    setNewSessionSections(updated);
+  };
+
+  const handleAddSection = () => {
+    const newOrder = newSessionSections.length + 1;
+    setNewSessionSections([
+      ...newSessionSections,
+      { id: Date.now(), title: `Section ${newOrder}`, exercises: [] },
+    ]);
+  };
+
+  const handleRemoveSection = (sectionIndex: number) => {
+    setNewSessionSections(
+      newSessionSections.filter((_, i) => i !== sectionIndex),
+    );
+  };
+
+  const handleUpdateSectionTitle = (sectionIndex: number, newTitle: string) => {
+    const updated = [...newSessionSections];
+    updated[sectionIndex] = { ...updated[sectionIndex], title: newTitle };
+    setNewSessionSections(updated);
   };
 
   const handleSaveSession = async () => {
-    if (!newSessionExercises.length) {
+    const hasExercises = newSessionSections.some(
+      (sec) => sec.exercises.length > 0,
+    );
+    if (!hasExercises) {
       toast.error("กรุณาเพิ่มท่าออกกำลังกายอย่างน้อย 1 ท่า");
-      return;
-    }
-    if (!newSessionData.title) {
-      toast.error("กรุณาระบุชื่อ Workout Session");
       return;
     }
 
     try {
       setLoading(true);
-
       const startDateTime = new Date(
         `${newSessionData.date}T${newSessionData.time}:00`,
       );
@@ -264,7 +463,6 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
         `${newSessionData.date}T${newSessionData.endTime}:00`,
       );
 
-      // Create Session
       const sessionRes = await api.post("/sessions", {
         client_id: client.id,
         title: newSessionData.title,
@@ -278,28 +476,57 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
       });
 
       const newSessionId = sessionRes.data.id;
+      let orderCounter = 1;
 
-      // Create Logs
-      const logPromises = newSessionExercises.flatMap((ex, exIdx) => {
-        return ex.sets.map((set: any) => {
+      const logPromises = newSessionSections.flatMap((section, secIdx) => {
+        return section.exercises.map((ex: any) => {
+          const currentOrder = orderCounter++;
           return api.post(`/sessions/${newSessionId}/logs`, {
             exercise_id: parseInt(ex.exerciseId),
             exercise_name: ex.name,
-            category: ex.category,
-            set_number: set.setNumber,
-            planned_weight_kg: parseFloat(set.weight) || 0,
-            planned_reps: parseInt(set.reps) || 0,
-            rest_seconds: parseInt(set.rest) || 60,
-            rpe: parseFloat(set.rpe) || 0,
-            notes: set.notes || "",
-            status: "pending",
-            order: exIdx + 1,
+            category: ex.category || "General",
+            tracking_fields: ex.trackingFields || [],
+            order: currentOrder,
+            section_name: section.title,
+            section_order: secIdx + 1,
+            sets: ex.sets.map((set: any, setIdx: number) => ({
+              set_number: setIdx + 1,
+              planned_weight_kg: parseFloat(set.weight) || 0,
+              planned_reps: parseInt(set.reps) || 0,
+              planned_rpe: parseFloat(set.rpe) || 0,
+              planned_distance: parseFloat(set.distance) || 0,
+              planned_duration_seconds:
+                parseTimeToSeconds(set.duration) ||
+                parseTimeToSeconds(set.time) ||
+                0,
+              rest_duration_seconds: parseTimeToSeconds(set.rest) || 60,
+              planned_metadata: {
+                // Text / time fields
+                tempo:          set.tempo     || "",
+                hold_time:      set.hold_time || "",
+                side:           set.side      || "",
+                pace:           set.pace      || "",
+                // ✅ FIX: Advanced numeric fields
+                speed:          parseFloat(set.speed)          || 0,
+                cadence:        parseFloat(set.cadence)        || 0,
+                distance_long:  parseFloat(set.distance_long)  || 0,
+                distance_short: parseFloat(set.distance_short) || 0,
+                one_rm:         parseFloat(set.one_rm)         || 0,
+                rir:            parseFloat(set.rir)            || 0,
+                heart_rate:     parseFloat(set.heart_rate)     || 0,
+                hr_zone:        parseFloat(set.hr_zone)        || 0,
+                watts:          parseFloat(set.watts)          || 0,
+                rpm:            parseFloat(set.rpm)            || 0,
+                rounds:         parseFloat(set.rounds)         || 0,
+              },
+              notes: set.notes || "",
+              completed: false,
+            })),
           });
         });
       });
 
       await Promise.all(logPromises);
-
       toast.success("บันทึกเซสชันเรียบร้อย");
       setShowAddSessionModal(false);
       resetForm();
@@ -325,19 +552,16 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
 
   const handleConfirmReschedule = async () => {
     if (!sessionToReschedule || !newDate) return;
-
     try {
       const startDateTime = new Date(newDate);
       const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
-
       await api.patch(`/sessions/${sessionToReschedule.id}`, {
         start_time: toRFC3339String(startDateTime),
         end_time: toRFC3339String(endDateTime),
       });
-
       toast.success("เปลี่ยนนัดหมายเรียบร้อยแล้ว");
       setIsRescheduleOpen(false);
-      fetchSessions(); // Reload
+      fetchSessions();
     } catch (err) {
       console.error("Failed to reschedule", err);
       toast.error("ไม่สามารถเปลี่ยนนัดหมายได้");
@@ -377,9 +601,8 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
 
   return (
     <div className="space-y-8">
-      {/* Quick Stats */}
+      {/* ===== Quick Stats ===== */}
       <div className="grid grid-cols-3 gap-2 md:gap-4">
-        {/* Card 1 */}
         <div className="bg-orange-50/60 md:bg-white rounded-2xl md:rounded-[20px] p-3 md:p-5 border border-orange-100/50 md:border-slate-100 flex flex-col md:shadow-sm transition-all group hover:md:border-orange-200">
           <div className="flex md:flex-row flex-col items-start md:items-center justify-between gap-2 mb-2 md:mb-4">
             <div className="h-8 w-8 md:h-12 md:w-12 rounded-full bg-orange-100/80 md:bg-orange-50 flex items-center justify-center shrink-0 group-hover:md:scale-110 transition-transform">
@@ -399,7 +622,6 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
           </div>
         </div>
 
-        {/* Card 2 */}
         <div className="bg-blue-50/60 md:bg-white rounded-2xl md:rounded-[20px] p-3 md:p-5 border border-blue-100/50 md:border-slate-100 flex flex-col md:shadow-sm transition-all group hover:md:border-blue-200">
           <div className="flex md:flex-row flex-col items-start md:items-center justify-between gap-2 mb-2 md:mb-4">
             <div className="h-8 w-8 md:h-12 md:w-12 rounded-full bg-blue-100/80 md:bg-blue-50 flex items-center justify-center shrink-0 group-hover:md:scale-110 transition-transform">
@@ -411,7 +633,7 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
           </div>
           <div className="mt-auto">
             <div className="text-xl md:text-3xl font-bold text-blue-950 md:text-navy-900">
-              {pastSessions.length}
+              {completedSessions.length}
             </div>
             <p className="text-[9px] md:text-xs text-blue-600/70 md:text-slate-400 font-medium mt-0.5 md:mt-1 truncate">
               เซสชันทั้งหมด
@@ -419,7 +641,6 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
           </div>
         </div>
 
-        {/* Card 3 */}
         <div className="bg-emerald-50/60 md:bg-white rounded-2xl md:rounded-[20px] p-3 md:p-5 border border-emerald-100/50 md:border-slate-100 flex flex-col md:shadow-sm transition-all group hover:md:border-emerald-200">
           <div className="flex md:flex-row flex-col items-start md:items-center justify-between gap-2 mb-2 md:mb-4">
             <div className="h-8 w-8 md:h-12 md:w-12 rounded-full bg-emerald-100/80 md:bg-emerald-50 flex items-center justify-center shrink-0 group-hover:md:scale-110 transition-transform">
@@ -431,7 +652,7 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
           </div>
           <div className="mt-auto">
             <div className="text-xl md:text-3xl font-bold text-emerald-950 md:text-navy-900">
-              95%
+              {attendanceRate !== null ? `${attendanceRate}%` : "N/A"}
             </div>
             <p className="text-[9px] md:text-xs text-emerald-600/70 md:text-slate-400 font-medium mt-0.5 md:mt-1 truncate">
               จากนัดทั้งหมด
@@ -442,7 +663,7 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
 
       <div className="border-t border-slate-100 my-8" />
 
-      {/* Filters */}
+      {/* ===== Filter Bar ===== */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
         <div className="flex items-center gap-2 text-navy-900 font-medium">
           <Filter className="h-4 w-4 text-slate-500" />
@@ -473,18 +694,16 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
         </div>
       </div>
 
-      {/* Sessions List (History) */}
+      {/* ===== Sessions List ===== */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-navy-900 flex items-center gap-2">
             <div className="h-6 w-1 bg-navy-900 rounded-full" />
             ประวัติการฝึกทั้งหมด
           </h3>
-
           <span className="text-sm text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-100 shadow-sm">
             ทั้งหมด {filteredSessions.length} รายการ
           </span>
-
           <Button
             onClick={() => setShowAddSessionModal(true)}
             className="bg-navy-900 hover:bg-navy-800 text-white shadow-lg shadow-navy-900/20 rounded-full px-6 transition-all active:scale-95"
@@ -510,8 +729,6 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
             {filteredSessions.map((session) => {
               const sessionDate = new Date(session.start_time);
               const statusBadge = getStatusBadge(session.status);
-
-              // คำนวณระยะเวลา (ถ้ามี end_time)
               const endDate = new Date(session.end_time);
               const durationMinutes = Math.round(
                 (endDate.getTime() - sessionDate.getTime()) / 60000,
@@ -522,7 +739,6 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                   key={session.id}
                   className="group bg-white rounded-2xl border border-slate-100 p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center gap-5 hover:shadow-lg hover:shadow-slate-200/50 hover:border-orange-100 transition-all duration-300 cursor-default"
                 >
-                  {/* Date Box */}
                   <div className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border border-slate-100 overflow-hidden flex flex-col shadow-sm group-hover:scale-105 transition-transform duration-300">
                     <div className="h-7 bg-navy-900 text-white text-[10px] sm:text-xs font-bold uppercase flex items-center justify-center tracking-wider">
                       {sessionDate.toLocaleDateString("th-TH", {
@@ -542,7 +758,6 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                     </div>
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0 py-1">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       <h4 className="text-lg font-bold text-navy-900 truncate group-hover:text-orange-600 transition-colors">
@@ -580,7 +795,6 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                           })}
                         </span>
                       </div>
-
                       {durationMinutes > 0 && (
                         <div className="flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
@@ -588,18 +802,15 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                         </div>
                       )}
                     </div>
-
                     {session.status === "scheduled" && (
                       <p className="text-xs text-orange-500 mt-2 font-medium flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" />
+                        <AlertTriangle className="h-3 w-3" />{" "}
                         อย่าลืมเช็คอินเมื่อเริ่มฝึก
                       </p>
                     )}
                   </div>
 
-                  {/* Actions */}
                   <div className="flex items-center gap-1 self-end md:self-center ml-auto border-t md:border-t-0 border-slate-100 pt-3 md:pt-0 w-full md:w-auto justify-end">
-                    {/* Reschedule Start */}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -613,7 +824,6 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                     >
                       <Calendar className="h-4 w-4" />
                     </Button>
-
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
@@ -659,13 +869,11 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                     >
                       {session.status === "completed" ? (
                         <div className="flex items-center gap-2">
-                          <Eye className="h-3.5 w-3.5" />
-                          ดูบันทึก
+                          <Eye className="h-3.5 w-3.5" /> ดูบันทึก
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <Play className="h-3.5 w-3.5 fill-current" />
-                          เริ่มฝึก
+                          <Play className="h-3.5 w-3.5 fill-current" /> เริ่มฝึก
                         </div>
                       )}
                     </Button>
@@ -677,7 +885,7 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
         )}
       </div>
 
-      {/* Reschedule Dialog */}
+      {/* ===== Reschedule Dialog ===== */}
       <Dialog open={isRescheduleOpen} onOpenChange={setIsRescheduleOpen}>
         <DialogContent>
           <DialogHeader>
@@ -714,7 +922,7 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
         </DialogContent>
       </Dialog>
 
-      {/* --- Add Session Dialog --- */}
+      {/* ===== Add Session Dialog ===== */}
       <Dialog
         open={showAddSessionModal}
         onOpenChange={(open) => {
@@ -722,8 +930,8 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
           if (!open) resetForm();
         }}
       >
-        <DialogContent className="rounded-2xl max-w-4xl max-h-[90vh] flex flex-col p-0">
-          <div className="px-6 py-4 border-b border-border">
+        <DialogContent className="rounded-2xl max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden gap-0">
+          <div className="px-6 py-4 border-b border-border shrink-0">
             <DialogHeader>
               <DialogTitle>สร้าง Workout Session ใหม่</DialogTitle>
               <DialogDescription>
@@ -732,244 +940,398 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
             </DialogHeader>
           </div>
 
-          <ScrollArea className="flex-1 px-6">
-            <div className="space-y-6 py-4">
-              {/* 1. Basic Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>ชื่อ Workout Session</Label>
-                  <Input
-                    placeholder="เช่น Chest & Triceps"
-                    value={newSessionData.title}
-                    onChange={(e) =>
-                      setNewSessionData({
-                        ...newSessionData,
-                        title: e.target.value,
-                      })
-                    }
-                  />
-                </div>
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>วันที่</Label>
+                <Input
+                  type="date"
+                  value={newSessionData.date}
+                  onChange={(e) =>
+                    setNewSessionData({
+                      ...newSessionData,
+                      date: e.target.value,
+                    })
+                  }
+                />
               </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>วันที่</Label>
-                  <Input
-                    type="date"
-                    value={newSessionData.date}
-                    onChange={(e) =>
-                      setNewSessionData({
-                        ...newSessionData,
-                        date: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>เวลาเริ่ม</Label>
-                  <Input
-                    type="time"
-                    value={newSessionData.time}
-                    onChange={(e) =>
-                      setNewSessionData({
-                        ...newSessionData,
-                        time: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>เวลาสิ้นสุด</Label>
-                  <Input
-                    type="time"
-                    value={newSessionData.endTime}
-                    onChange={(e) =>
-                      setNewSessionData({
-                        ...newSessionData,
-                        endTime: e.target.value,
-                      })
-                    }
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label>เวลาเริ่ม</Label>
+                <Input
+                  type="time"
+                  value={newSessionData.time}
+                  onChange={(e) =>
+                    setNewSessionData({
+                      ...newSessionData,
+                      time: e.target.value,
+                    })
+                  }
+                />
               </div>
+              <div className="space-y-2">
+                <Label>เวลาสิ้นสุด</Label>
+                <Input
+                  type="time"
+                  value={newSessionData.endTime}
+                  onChange={(e) =>
+                    setNewSessionData({
+                      ...newSessionData,
+                      endTime: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
 
-              {/* 2. Exercises Area */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-base font-semibold text-navy-900">
-                    รายการท่าฝึก ({newSessionExercises.length})
-                  </Label>
-                  <Button
-                    size="sm"
-                    onClick={() => setShowExercisePicker(true)}
-                    className="bg-navy-900 text-white hover:bg-navy-800"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    เพิ่มท่าฝึก
+            <div className="space-y-4">
+              {newSessionSections.length === 0 ? (
+                <div className="border-2 border-dashed rounded-xl p-8 text-center text-muted-foreground bg-slate-50/50">
+                  <Dumbbell className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>ยังไม่มีช่วงการฝึกในรายการ</p>
+                  <Button variant="link" onClick={handleAddSection}>
+                    กดที่นี่เพื่อเพิ่มช่วงการฝึก
                   </Button>
                 </div>
-
-                {newSessionExercises.length === 0 ? (
-                  <div className="border-2 border-dashed rounded-xl p-8 text-center text-muted-foreground bg-slate-50/50">
-                    <Dumbbell className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>ยังไม่มีท่าฝึกในรายการ</p>
-                    <Button
-                      variant="link"
-                      onClick={() => setShowExercisePicker(true)}
+              ) : (
+                <div className="space-y-4">
+                  {newSessionSections.map((section, secIdx) => (
+                    <div
+                      key={section.id || secIdx}
+                      className="border border-slate-200 rounded-lg p-3 bg-slate-50/50 space-y-3"
                     >
-                      กดที่นี่เพื่อเพิ่มท่าฝึก
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid gap-4">
-                    {newSessionExercises.map((ex, exIdx) => (
-                      <Card key={ex.id} className="relative overflow-hidden">
-                        <div className="bg-slate-50 border-b p-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant="outline"
-                              className="bg-white font-mono text-xs"
-                            >
-                              #{exIdx + 1}
-                            </Badge>
-                            <span className="font-semibold">{ex.name}</span>
-                            <Badge
-                              variant="secondary"
-                              className="text-[10px] uppercase"
-                            >
-                              {ex.category}
-                            </Badge>
-                          </div>
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <Input
+                          value={section.title}
+                          onChange={(e) =>
+                            handleUpdateSectionTitle(secIdx, e.target.value)
+                          }
+                          className="font-semibold text-sm border-none shadow-none focus-visible:ring-0 p-0 h-auto w-[250px] bg-transparent text-navy-900"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-xs text-navy-900"
+                            onClick={() => {
+                              setActiveSectionIndex(secIdx);
+                              setShowExercisePicker(true);
+                            }}
+                          >
+                            <Plus className="h-3 w-3 mr-1" /> เพิ่มท่าฝึกใน
+                            Section
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => handleRemoveExercise(exIdx)}
+                            className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                            onClick={() => handleRemoveSection(secIdx)}
                           >
-                            <X className="h-4 w-4" />
+                            <Trash className="h-4 w-4" />
                           </Button>
                         </div>
-                        <div className="p-3 space-y-3">
-                          {ex.sets.map((set: any, setIdx: number) => (
-                            <div
-                              key={setIdx}
-                              className="flex items-center gap-3 text-sm"
-                            >
-                              <div className="w-8 flex-shrink-0 text-center font-bold text-slate-400">
-                                {setIdx + 1}
-                              </div>
-                              <div className="grid grid-cols-4 gap-2 flex-1">
-                                <div className="space-y-1">
-                                  <span className="text-[10px] text-muted-foreground uppercase">
-                                    นน. (kg)
-                                  </span>
-                                  <Input
-                                    className="h-8"
-                                    placeholder="0"
-                                    type="number"
-                                    value={set.weight}
-                                    onChange={(e) => {
-                                      const updated = [...newSessionExercises];
-                                      updated[exIdx].sets[setIdx].weight =
-                                        e.target.value;
-                                      setNewSessionExercises(updated);
-                                    }}
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <span className="text-[10px] text-muted-foreground uppercase">
-                                    ครั้ง (Reps)
-                                  </span>
-                                  <Input
-                                    className="h-8"
-                                    placeholder="0"
-                                    value={set.reps}
-                                    onChange={(e) => {
-                                      const updated = [...newSessionExercises];
-                                      updated[exIdx].sets[setIdx].reps =
-                                        e.target.value;
-                                      setNewSessionExercises(updated);
-                                    }}
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <span className="text-[10px] text-muted-foreground uppercase">
-                                    พัก (วิ)
-                                  </span>
-                                  <Input
-                                    className="h-8"
-                                    placeholder="60"
-                                    type="number"
-                                    value={set.rest}
-                                    onChange={(e) => {
-                                      const updated = [...newSessionExercises];
-                                      updated[exIdx].sets[setIdx].rest =
-                                        e.target.value;
-                                      setNewSessionExercises(updated);
-                                    }}
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <span className="text-[10px] text-muted-foreground uppercase">
-                                    RPE
-                                  </span>
-                                  <Input
-                                    className="h-8"
-                                    placeholder="-"
-                                    value={set.rpe}
-                                    onChange={(e) => {
-                                      const updated = [...newSessionExercises];
-                                      updated[exIdx].sets[setIdx].rpe =
-                                        e.target.value;
-                                      setNewSessionExercises(updated);
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-slate-300 hover:text-red-500 mt-4"
-                                onClick={() => handleRemoveSet(exIdx, setIdx)}
+                      </div>
+                      <div className="grid gap-3">
+                        {section.exercises.length === 0 ? (
+                          <div className="text-center py-4 text-xs text-slate-400">
+                            ยังไม่มีท่าฝึก กดปุ่ม "เพิ่มท่าฝึกใน Section" ด้านบน
+                          </div>
+                        ) : (
+                          section.exercises.map((ex: any, exIdx: number) => {
+                            const exData = exercisesList.find(
+                              (e) => String(e.id) === String(ex.exerciseId),
+                            );
+                            const fields: string[] =
+                              ex.trackingFields && ex.trackingFields.length > 0
+                                ? ex.trackingFields
+                                : getFields(exData);
+
+                            return (
+                              <Card
+                                key={ex.id || exIdx}
+                                className="relative overflow-hidden bg-white shadow-sm border-slate-200"
                               >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full text-xs border-dashed text-slate-500 hover:text-navy-900 hover:border-navy-900"
-                            onClick={() => handleAddSet(exIdx)}
-                          >
-                            <Plus className="h-3 w-3 mr-1" /> เพิ่ม Set
-                          </Button>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
+                                <div className="bg-white border-b border-slate-100 p-3 flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      variant="outline"
+                                      className="bg-slate-100 font-mono text-xs text-slate-500"
+                                    >
+                                      #{exIdx + 1}
+                                    </Badge>
+                                    <span className="font-semibold text-sm">
+                                      {ex.name}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 text-slate-400 hover:text-navy-900 hover:bg-slate-100"
+                                        >
+                                          <Settings className="h-4 w-4" />
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent
+                                        align="end"
+                                        className="w-56 p-0 overflow-hidden"
+                                      >
+                                        <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+                                          <h4 className="font-semibold text-sm text-navy-900">
+                                            ตัวชี้วัด
+                                          </h4>
+                                        </div>
+
+                                        <ScrollArea className="h-[280px] p-3">
+                                          <div className="space-y-3 pb-3">
+                                            {[
+                                              "time",
+                                              "rest",
+                                              "speed",
+                                              "cadence",
+                                              "distance_long",
+                                              "distance_short",
+                                              "reps",
+                                              "one_rm",
+                                              "weight",
+                                              "rpe",
+                                              "rir",
+                                              "heart_rate",
+                                              "hr_zone",
+                                              "watts",
+                                              "rpm",
+                                              "rounds",
+                                            ].map((f) => {
+                                              const normalized =
+                                                normalizeTrackingFieldKey(f);
+                                              return (
+                                                <div
+                                                  key={f}
+                                                  className="flex justify-between items-center space-x-2"
+                                                >
+                                                  <Label
+                                                    htmlFor={`field-${secIdx}-${exIdx}-${f}`}
+                                                    className="text-xs cursor-pointer flex-1"
+                                                  >
+                                                    {FIELD_CONFIG[normalized]
+                                                      ?.label ||
+                                                      FIELD_CONFIG[f]?.label ||
+                                                      f}
+                                                  </Label>
+                                                  <Switch
+                                                    id={`field-${secIdx}-${exIdx}-${f}`}
+                                                    checked={
+                                                      fields.includes(
+                                                        normalized,
+                                                      ) || fields.includes(f)
+                                                    }
+                                                    onCheckedChange={(c) =>
+                                                      handleUpdateTrackingFields(
+                                                        secIdx,
+                                                        exIdx,
+                                                        f,
+                                                        c,
+                                                      )
+                                                    }
+                                                    className="scale-75 data-[state=checked]:bg-navy-900"
+                                                  />
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </ScrollArea>
+                                      </PopoverContent>
+                                    </Popover>
+
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 text-slate-400 hover:text-navy-900 hover:bg-slate-100"
+                                        >
+                                          <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            setSwapExerciseIndex(exIdx);
+                                            setActiveSectionIndex(secIdx);
+                                            setShowExercisePicker(true);
+                                          }}
+                                        >
+                                          <Repeat className="h-4 w-4 mr-2" />{" "}
+                                          เปลี่ยนท่า
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            handleRemoveExercise(secIdx, exIdx)
+                                          }
+                                          className="text-red-500 hover:text-red-600 focus:text-red-600 focus:bg-red-50"
+                                        >
+                                          <Trash className="h-4 w-4 mr-2" />{" "}
+                                          ลบท่า
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                </div>
+
+                                {/* ===== Set Layout — ProgramBuilder Style ===== */}
+                                <div className="p-3 space-y-3 bg-slate-50 border-t border-slate-100">
+                                  {ex.sets.map((set: any, setIdx: number) => (
+                                    <div
+                                      key={setIdx}
+                                      className="border p-3 rounded-lg bg-white relative group"
+                                    >
+                                      <div className="flex justify-between items-center mb-3">
+                                        <Badge
+                                          variant="secondary"
+                                          className="px-2 py-0.5 text-xs font-normal bg-muted text-muted-foreground"
+                                        >
+                                          Set {setIdx + 1}
+                                        </Badge>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-5 w-5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                          onClick={() =>
+                                            handleRemoveSet(secIdx, exIdx, setIdx)
+                                          }
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                        {fields.map((fieldName) => {
+                                          let config = FIELD_CONFIG[fieldName];
+                                          if (!config) {
+                                            const normalized =
+                                              normalizeTrackingFieldKey(fieldName);
+                                            config = FIELD_CONFIG[normalized] || {
+                                              label: fieldName,
+                                              placeholder: "-",
+                                              type: "text",
+                                            };
+                                          }
+                                          const isTimeField = [
+                                            "rest",
+                                            "time",
+                                            "duration",
+                                            "hold_time",
+                                            "work_time",
+                                            "rest_time",
+                                          ].includes(fieldName);
+
+                                          if (fieldName === "notes") {
+                                            return (
+                                              <div
+                                                key={fieldName}
+                                                className="col-span-2 sm:col-span-4"
+                                              >
+                                                <Input
+                                                  placeholder={config.placeholder}
+                                                  className="h-8 text-xs border-dashed bg-slate-50 focus:bg-white"
+                                                  value={set[fieldName] || ""}
+                                                  onChange={(e) => {
+                                                    const updated = [
+                                                      ...newSessionSections,
+                                                    ];
+                                                    updated[secIdx].exercises[
+                                                      exIdx
+                                                    ].sets[setIdx][fieldName] =
+                                                      e.target.value;
+                                                    setNewSessionSections(updated);
+                                                  }}
+                                                />
+                                              </div>
+                                            );
+                                          }
+
+                                          return (
+                                            <div key={fieldName} className="space-y-1">
+                                              <span className="text-[10px] text-muted-foreground font-medium uppercase ml-1">
+                                                {config.label}
+                                              </span>
+                                              <Input
+                                                className="h-8 text-center border-2 border-gray-300"
+                                                placeholder={config.placeholder}
+                                                type={config.type}
+                                                value={set[fieldName] || ""}
+                                                onChange={(e) => {
+                                                  let val: any = e.target.value;
+                                                  if (isTimeField)
+                                                    val = formatTimeInput(val);
+                                                  if (
+                                                    config.type === "number" &&
+                                                    val !== "" &&
+                                                    !isTimeField
+                                                  ) {
+                                                    const p = parseFloat(val);
+                                                    val = isNaN(p) ? "" : p;
+                                                  }
+                                                  const updated = [
+                                                    ...newSessionSections,
+                                                  ];
+                                                  updated[secIdx].exercises[
+                                                    exIdx
+                                                  ].sets[setIdx][fieldName] = val;
+                                                  setNewSessionSections(updated);
+                                                }}
+                                              />
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ))}
+
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full h-8 text-xs font-medium text-slate-500 hover:text-navy-900 hover:bg-slate-200/50 mt-1 bg-slate-100/50 border border-dashed border-slate-200"
+                                    onClick={() => handleAddSet(secIdx, exIdx)}
+                                  >
+                                    <Plus className="h-3.5 w-3.5 mr-1" /> เพิ่ม Set
+                                  </Button>
+                                </div>
+                                {/* ===== End Set Layout ===== */}
+                              </Card>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </ScrollArea>
-          <div className="p-4 border-t border-border flex justify-end gap-2 bg-slate-50/50">
-            <Button
-              variant="outline"
-              onClick={() => setShowAddSessionModal(false)}
-            >
-              ยกเลิก
+          </div>
+          <div className="p-4 border-t border-border flex justify-between gap-2 bg-slate-50/50 shrink-0">
+            <Button variant="outline" onClick={handleAddSection}>
+              <Plus className="h-4 w-4 mr-1" /> เพิ่ม Section
             </Button>
-            <Button
-              onClick={handleSaveSession}
-              className="bg-navy-900 hover:bg-navy-800 text-white"
-            >
-              บันทึกการฝึกซ้อม
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowAddSessionModal(false)}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                onClick={handleSaveSession}
+                className="bg-navy-900 hover:bg-navy-800 text-white"
+              >
+                บันทึกการฝึกซ้อม
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* --- Exercise Picker Dialog --- */}
+      {/* ===== Exercise Picker Dialog ===== */}
       <Dialog open={showExercisePicker} onOpenChange={setShowExercisePicker}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
@@ -1000,7 +1362,13 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                     >
                       <span className="font-medium text-sm">{ex.name}</span>
                       <Badge variant="secondary" className="text-[10px]">
-                        {ex.category}
+                        {ex.category === "weight-training"
+                          ? "Weight Training"
+                          : ex.category === "cardio"
+                            ? "Cardio"
+                            : ex.category === "flexibility"
+                              ? "Flexibility"
+                              : ex.category}
                       </Badge>
                     </div>
                   ))}

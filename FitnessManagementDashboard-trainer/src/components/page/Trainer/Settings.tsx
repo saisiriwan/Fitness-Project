@@ -94,6 +94,7 @@ export default function Settings() {
     }
   }, [user]);
 
+  /* ฟังก์ชัน: handleSave — บันทึกการตั้งค่าไป API (PUT) + อัปเดต AuthContext */
   const handleSave = async () => {
     try {
       if (!user?.id) return;
@@ -144,14 +145,17 @@ export default function Settings() {
     }
   };
 
+  /* ฟังก์ชัน: handleSettingChange — อัปเดต settings state ตาม key */
   const handleSettingChange = (key: string, value: any) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
+  /* ฟังก์ชัน: handleAvatarClick — กด avatar เพื่อเปิด file picker (ซ่อน input[type=file]) */
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
   };
 
+  /* ฟังก์ชัน: handleFileChange — อัปโหลดรูป avatar ไป API (multipart/form-data) */
   const handleFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -196,6 +200,7 @@ export default function Settings() {
     }
   };
 
+  /* ฟังก์ชัน: handleLogout — ออกจากระบบ + redirect ไปหน้า signin */
   const handleLogout = async () => {
     try {
       if (signOut) {

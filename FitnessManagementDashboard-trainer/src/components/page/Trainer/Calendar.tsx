@@ -7,6 +7,10 @@ import {
   StickyNote,
   Coffee,
   AlertTriangle,
+  Calendar as CalendarIcon,
+  Clock,
+  User,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +47,7 @@ import {
 } from "@/components/ui/select";
 import api from "@/lib/api";
 
-// Helper: สร้าง YYYY-MM-DD จาก local date (ไม่ใช้ UTC)
+/* Helper: toLocalDateStr — สร้าง YYYY-MM-DD จาก local date (ไม่ใช้ UTC) */
 const toLocalDateStr = (date: Date): string => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -73,9 +77,11 @@ interface Session {
   id: string;
   clientId: string;
   date: string;
+  endTime?: string;
   status: string;
   type?: string;
-  notes?: string;
+  title?: string;
+  notes?: string; // used for location
   exercises?: any[];
 }
 
@@ -102,6 +108,8 @@ export default function Calendar() {
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [showNewSessionDialog, setShowNewSessionDialog] = useState(false);
   const [showRestDayDialog, setShowRestDayDialog] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] =
+    useState<Session | null>(null);
 
   // Conflict Detection State
   const [showConflictDialog, setShowConflictDialog] = useState(false);
@@ -123,6 +131,7 @@ export default function Calendar() {
     fetchData();
   }, [currentDate]); // Re-fetch when month changes
 
+  /* ฟังก์ชัน: fetchData — ดึง clients + sessions + notes ตามช่วงเดือนที่แสดง */
   const fetchData = useCallback(async () => {
     try {
       // Calculate date range for current view (Month)
@@ -154,9 +163,11 @@ export default function Calendar() {
         id: s.id.toString(),
         clientId: s.client_id.toString(),
         date: s.start_time,
+        endTime: s.end_time,
+        title: s.title,
         status: s.status,
         type: s.type || "workout",
-        notes: s.summary, // Assuming summary maps to notes
+        notes: s.location || s.summary, // location preferred for appointments
         exercises: s.exercises || [], // Mocking structure if backend doesn't return full details
       }));
       setSessions(mappedSessions);
@@ -176,9 +187,10 @@ export default function Calendar() {
     }
   }, [currentDate]);
 
-  // Helper Functions
+  /* Helper: getClientById — หาลูกค้าตาม id */
   const getClientById = (id: string) => clients.find((c) => c.id === id);
 
+  /* Helper: getMonthDates — สร้างตาราง 42 วัน (6 สัปดาห์) สำหรับ grid ปฏิทิน */
   const getMonthDates = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -203,11 +215,13 @@ export default function Calendar() {
   };
   const monthDates = getMonthDates(currentDate);
 
+  /* Helper: getSessionsForDate — กรอง session ที่ตรงกับวันที่ */
   const getSessionsForDate = (date: Date) => {
     const dateStr = toLocalDateStr(date);
     return sessions.filter((session) => session.date.startsWith(dateStr));
   };
 
+  /* Helper: getNotesForDate — กรอง notes (วันหยุด/โน้ต) ตามวันที่ */
   const getNotesForDate = (dateStr: string) => {
     // Need to handle timezone carefully. Backend likely returns UTC/ISO.
     // Comparing strictly by YYYY-MM-DD string part if properly stored.
@@ -229,22 +243,25 @@ export default function Calendar() {
     [calendarNotes, selectedDateStr],
   );
 
+  /* ฟังก์ชัน: navigateMonth — เลื่อนเดือนไปก่อน/หลัง */
   const navigateMonth = (direction: "prev" | "next") => {
     const newDate = new Date(currentDate);
     newDate.setMonth(newDate.getMonth() + (direction === "next" ? 1 : -1));
     setCurrentDate(newDate);
   };
 
+  /* ฟังก์ชัน: handleStartSession — คลิกนัดหมาย → เปิดหน้า log หรือ popup รายละเอียด appointment */
   const handleStartSession = (session: Session) => {
     if (session.type === "appointment") {
-      // For general appointments, show a brief success/info or just do nothing
-      // For now, let's show a toast or we could open a details modal
-      toast.info("นี่คือนัดหมายทั่วไป ไม่ใช่เซสชันออกกำลังกาย");
+      setSelectedAppointment(session);
       return;
     }
-    navigate(`/trainer/sessions/${session.id}/log`);
+    navigate(`/trainer/sessions/${session.id}/log`, {
+      state: { from: "/trainer/calendar" },
+    });
   };
 
+  /* ฟังก์ชัน: openNewSessionDialog — เปิด dialog สร้างนัดหมายใหม่ (reset form) */
   const openNewSessionDialog = () => {
     setNewSession({
       clientId: "",
@@ -257,6 +274,7 @@ export default function Calendar() {
     setShowNewSessionDialog(true);
   };
 
+  /* ฟังก์ชัน: handleCreateSession — สร้างนัดหมายใหม่ผ่าน API + จัดการ conflict 409 */
   const handleCreateSession = async () => {
     if (
       !newSession.clientId ||
@@ -303,6 +321,7 @@ export default function Calendar() {
     }
   };
 
+  /* ฟังก์ชัน: handleConfirmReplace — ลบนัดหมายเดิม (ที่ชน) + สร้างใหม่แทน */
   const handleConfirmReplace = async () => {
     if (!conflictSession || !pendingSessionPayload) return;
 
@@ -325,8 +344,8 @@ export default function Calendar() {
     }
   };
 
+  /* ฟังก์ชัน: handleDeleteSession — ลบนัดหมาย (optimistic + rollback) */
   const handleDeleteSession = async (sessionId: string) => {
-    // Store previous state for rollback
     const previousSessions = [...sessions];
 
     // Optimistic update
@@ -343,6 +362,7 @@ export default function Calendar() {
     }
   };
 
+  /* ฟังก์ชัน: handleCreateRestDay — กำหนดวันหยุด + ยกเลิกนัดหมายที่มีในวันนั้น */
   const handleCreateRestDay = async () => {
     const hasRestDay = selectedDateNotes.some((n) => n.type === "rest-day");
     if (hasRestDay) {
@@ -385,6 +405,7 @@ export default function Calendar() {
     }
   };
 
+  /* ฟังก์ชัน: handleDeleteNote — ลบ note/วันหยุด + คืนสถานะนัดหมายที่ถูกยกเลิก */
   const handleDeleteNote = async (noteId: string) => {
     try {
       const noteToDelete = calendarNotes.find((n) => n.id === noteId);
@@ -417,6 +438,7 @@ export default function Calendar() {
     }
   };
 
+  /* Helper: getSessionColor — กำหนดสี session ตาม clientId (hash) */
   const getSessionColor = (clientId: string) => {
     const hash = clientId.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
     return SESSION_COLORS[hash % SESSION_COLORS.length];
@@ -872,7 +894,7 @@ export default function Calendar() {
                 />
               </div>
               <div>
-                <Label>เวลา</Label>
+                <Label>เวลานัดหมาย</Label>
                 <Input
                   type="time"
                   value={newSession.time}
@@ -1048,6 +1070,100 @@ export default function Calendar() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* View Appointment Details Dialog */}
+      <Dialog
+        open={!!selectedAppointment}
+        onOpenChange={(open) => !open && setSelectedAppointment(null)}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5 text-blue-500" />
+              รายละเอียดนัดหมายทั่วไป
+            </DialogTitle>
+            <DialogDescription>
+              {selectedAppointment
+                ? new Date(selectedAppointment.date).toLocaleDateString(
+                    "th-TH",
+                    {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    },
+                  )
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAppointment && (
+            <div className="space-y-4 py-4">
+              {/* Title */}
+              {selectedAppointment.title && (
+                <div className="flex items-start gap-3">
+                  <div className="bg-blue-50 p-2 rounded-lg text-blue-600 mt-1">
+                    <CalendarIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      หัวข้อการนัดหมาย
+                    </p>
+                    <p className="text-base font-semibold">
+                      {selectedAppointment.title}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Time */}
+              <div className="flex items-start gap-3">
+                <div className="bg-blue-100 p-2 rounded-lg text-blue-700 mt-1">
+                  <Clock className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    เวลา
+                  </p>
+                  <p className="text-base font-semibold">
+                    {new Date(selectedAppointment.date).toLocaleTimeString(
+                      "th-TH",
+                      {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      },
+                    )}
+                    {selectedAppointment.endTime &&
+                      ` - ${new Date(
+                        selectedAppointment.endTime,
+                      ).toLocaleTimeString("th-TH", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      })}`}{" "}
+                    น.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="bg-gray-100 p-2 rounded-lg text-gray-700 mt-1">
+                  <MapPin className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    สถานที่ / รายละเอียด
+                  </p>
+                  <p className="text-base font-medium">
+                    {selectedAppointment.notes || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

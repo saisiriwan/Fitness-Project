@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   Save,
@@ -10,6 +10,8 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Plus,
   BookOpen,
   Trash2,
@@ -25,6 +27,9 @@ import {
   X,
   Repeat,
   SlidersHorizontal,
+  Calendar,
+  AlertTriangle,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,9 +67,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
+import SessionSummaryCard from "./SessionSummaryCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import api from "@/lib/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { KEY_MAP, normalizeTrackingFieldKey } from "@/types/exercise";
 
 const FIELD_CONFIG: Record<
   string,
@@ -119,20 +126,7 @@ const ADVANCED_FIELDS = [
 // Fields ที่เป็น time-seconds
 const TIME_FIELDS = ["time", "duration", "hold_time"];
 
-// KEY_MAP: display key → backend key
-const KEY_MAP: Record<string, string> = {
-  "Dist(L)": "distance_long",
-  "Dist(S)": "distance_short",
-  "%1RM": "one_rm",
-  "%HR": "hr_zone",
-  "Heart Rate": "heart_rate",
-  Watt: "watts",
-  Watts: "watts",
-  Speed: "speed",
-  Cadence: "cadence",
-  RPM: "rpm",
-  Rounds: "rounds",
-};
+// KEY_MAP and normalizeTrackingFieldKey have been moved to @/types/exercise
 
 const SECTION_TYPES = [
   { value: "warmup", label: "Warm-up", icon: Flame, color: "text-orange-500" },
@@ -209,6 +203,8 @@ interface AvailableExercise {
 export default function SessionLog() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromPath = location.state?.from;
 
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<ClientData | null>(null);
@@ -230,6 +226,7 @@ export default function SessionLog() {
   const [exerciseReps, setExerciseReps] = useState(10);
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+  const [showSummaryCard, setShowSummaryCard] = useState(false);
   const [sessionRating, setSessionRating] = useState(0);
   const [sessionComment, setSessionComment] = useState("");
   const [sessionNextGoals, setSessionNextGoals] = useState("");
@@ -243,7 +240,7 @@ export default function SessionLog() {
     useState("");
   const [newSection, setNewSection] = useState<any>({
     sectionType: "warmup",
-    sectionFormat: "straight-sets",
+    sectionFormat: "regular",
     name: "",
     duration: 10,
     rounds: 3,
@@ -262,6 +259,26 @@ export default function SessionLog() {
   const [swapExerciseIndex, setSwapExerciseIndex] = useState<number | null>(
     null,
   );
+
+  // --- Day Navigation States ---
+  const [siblingsSessions, setSiblingsSessions] = useState<
+    {
+      id: number;
+      title: string;
+      status: string;
+      start_time: string;
+      program_day_id: number | null;
+    }[]
+  >([]);
+  const [programInfo, setProgramInfo] = useState<{
+    id: number;
+    name: string;
+    start_date: string | null;
+    end_date: string | null;
+    duration_weeks: number;
+  } | null>(null);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const { lastMessage } = useWebSocket();
 
@@ -302,6 +319,29 @@ export default function SessionLog() {
         console.warn("Could not fetch exercises list", e);
       }
 
+      // Fetch sibling sessions + program info for Day Navigation
+      if (data.program_id) {
+        try {
+          const schedulesRes = await api.get("/schedules");
+          const siblings = (schedulesRes.data || [])
+            .filter((s: any) => s.program_id === data.program_id)
+            .sort(
+              (a: any, b: any) =>
+                new Date(a.start_time).getTime() -
+                new Date(b.start_time).getTime(),
+            );
+          setSiblingsSessions(siblings);
+        } catch (e) {
+          console.warn("Could not fetch sibling sessions", e);
+        }
+        try {
+          const progRes = await api.get(`/programs/${data.program_id}`);
+          setProgramInfo(progRes.data);
+        } catch (e) {
+          console.warn("Could not fetch program info", e);
+        }
+      }
+
       const mappedExercises: SessionExercise[] = (data.logs || []).map(
         (log: any) => ({
           id: log.id,
@@ -315,7 +355,7 @@ export default function SessionLog() {
           trackingFields: log.tracking_fields || [],
 
           sets: (log.sets || []).map((s: any, setIdx: number) => {
-            // ── Helper: รับ Array/comma-string แล้วแตก index ──
+            /* Helper: pickVal — รับ Array/comma-string แล้วแตก index (สำหรับค่า per-set) */
             const pickVal = (v: any): any => {
               if (v === undefined || v === null) return undefined;
               if (Array.isArray(v))
@@ -466,6 +506,7 @@ export default function SessionLog() {
     (ex) => ex.completed,
   ).length;
 
+  /* Helper: formatDate — แปลงวันที่เป็น ภาษาไทย */
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -487,6 +528,7 @@ export default function SessionLog() {
     }
   };
 
+  /* ฟังก์ชัน: toggleExercise — เปิด/ปิดการแสดงท่า (expand/collapse) */
   const toggleExercise = (idx: number) => {
     setExpandedExercises((prev) => {
       const s = new Set(prev);
@@ -495,6 +537,7 @@ export default function SessionLog() {
     });
   };
 
+  /* Helper: formatDuration — แปลงวินาที → mm:ss */
   const formatDuration = (seconds?: number | string): string => {
     if (seconds === undefined || seconds === null || seconds === "") return "";
     // ถ้าเป็น string แบบ "12:22" แล้ว return เลย
@@ -506,6 +549,7 @@ export default function SessionLog() {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  /* Helper: parseDuration — แปลง mm:ss → วินาที */
   const parseDuration = (str: string): number => {
     if (!str) return 0;
     if (str.includes(":")) {
@@ -515,7 +559,7 @@ export default function SessionLog() {
     return parseInt(str) || 0;
   };
 
-  // ── Helper อ่านค่าจาก set สำหรับ display ──
+  /* Helper: getSetDisplayValue — อ่านค่าจาก set สำหรับแสดงผล (รองรับหลาย field types) */
   const getSetDisplayValue = (
     set: ExerciseSet,
     field: string,
@@ -559,6 +603,7 @@ export default function SessionLog() {
     return raw;
   };
 
+  /* ฟังก์ชัน: updateSetValue — อัปเดตค่า field ของ set (เช่น reps, weight, duration ฯลฯ) */
   const updateSetValue = (
     exerciseIdx: number,
     setIdx: number,
@@ -596,6 +641,7 @@ export default function SessionLog() {
     });
   };
 
+  /* ฟังก์ชัน: toggleSetCompleted — toggle สถานะ completed ของ set */
   const toggleSetCompleted = (exerciseIdx: number, setIdx: number) => {
     setSessionExercises((prev) => {
       const updated = [...prev];
@@ -611,6 +657,7 @@ export default function SessionLog() {
     });
   };
 
+  /* ฟังก์ชัน: toggleExerciseCompleted — toggle สถานะ completed ของท่าทั้งหมด + ทุก set */
   const toggleExerciseCompleted = (exerciseIdx: number) => {
     setSessionExercises((prev) => {
       const updated = [...prev];
@@ -626,6 +673,7 @@ export default function SessionLog() {
     });
   };
 
+  /* ฟังก์ชัน: updateExerciseNotes — อัปเดตโน้ตของท่า */
   const updateExerciseNotes = (exerciseIdx: number, notes: string) => {
     setSessionExercises((prev) => {
       const updated = [...prev];
@@ -634,16 +682,25 @@ export default function SessionLog() {
     });
   };
 
+  /* ฟังก์ชัน: handleConfirmComplete — ยืนยันจบเซสชัน + ให้คะแนน + feedback → แสดง Summary Card */
   const handleConfirmComplete = async () => {
     const feedbackText = `Comment: ${sessionComment}\nNext Goals: ${sessionNextGoals}`;
-    await handleSave(isCompleted ? false : true, sessionRating, feedbackText);
+    await handleSave(
+      isCompleted ? false : true,
+      sessionRating,
+      feedbackText,
+      true,
+    );
     setShowCompleteDialog(false);
+    setShowSummaryCard(true);
   };
 
+  /* ฟังก์ชัน: handleSave — บันทึก session logs ทั้งหมดไป API + อัปเดตสถานะ session */
   const handleSave = async (
     markCompleted = false,
     rating?: number,
     feedback?: string,
+    skipNavigate = false,
   ) => {
     if (!id) return;
     try {
@@ -710,16 +767,22 @@ export default function SessionLog() {
       toast.success(
         markCompleted ? "บันทึกและจบเซสชันเรียบร้อย" : "บันทึกข้อมูลเรียบร้อย",
       );
-      if (markCompleted)
-        navigate(
-          client ? `/trainer/clients/${client.id}` : "/trainer/calendar",
-        );
+      if (markCompleted && !skipNavigate) {
+        if (fromPath) {
+          navigate(fromPath);
+        } else {
+          navigate(
+            client?.id ? `/trainer/clients/${client.id}` : "/trainer/clients",
+          );
+        }
+      }
     } catch (err) {
       console.error(err);
       toast.error("บันทึกข้อมูลล้มเหลว");
     }
   };
 
+  /* ฟังก์ชัน: handleAddExercise — เพิ่มท่าเดี่ยวใน session (ไม่ผ่าน section) */
   const handleAddExercise = () => {
     if (!selectedExerciseId) {
       toast.error("กรุณาเลือกท่าออกกำลังกาย");
@@ -757,7 +820,7 @@ export default function SessionLog() {
     toast.success("เพิ่มท่าออกกำลังกายเรียบร้อย");
   };
 
-  // --- Section Builder Helpers ---
+  /* Helper: formatTimeInput — จัดรูปแบบเวลา mm:ss */
   const formatTimeInput = (value: string) => {
     const clean = value.replace(/[^0-9]/g, "");
     if (clean.length === 3) return `${clean.slice(0, 1)}:${clean.slice(1)}`;
@@ -765,6 +828,7 @@ export default function SessionLog() {
     return clean;
   };
 
+  /* Helper: getDefaultTrackingFields — หา tracking fields ตั้งต้นจาก exercise library */
   const getDefaultTrackingFields = (exerciseId: string): string[] => {
     const ex = availableExercises.find((e) => e.id.toString() === exerciseId);
     if (ex?.tracking_fields?.length) return ex.tracking_fields;
@@ -779,10 +843,11 @@ export default function SessionLog() {
     return defaults[cat] || ["reps", "weight", "rpe"];
   };
 
+  /* ฟังก์ชัน: resetSectionForm — ล้างฟอร์มเพิ่ม section ใหม่ */
   const resetSectionForm = () => {
     setNewSection({
       sectionType: "warmup",
-      sectionFormat: "straight-sets",
+      sectionFormat: "regular",
       name: "",
       duration: 10,
       rounds: 3,
@@ -796,6 +861,7 @@ export default function SessionLog() {
     setSwapExerciseIndex(null);
   };
 
+  /* ฟังก์ชัน: handleAddExerciseToSection — เพิ่มท่าเข้า section ที่กำลังสร้าง */
   const handleAddExerciseToSection = (exId: string) => {
     const ex = availableExercises.find((e) => e.id.toString() === exId);
     if (!ex) return;
@@ -826,6 +892,7 @@ export default function SessionLog() {
     setSectionExerciseSearchTerm("");
   };
 
+  /* ฟังก์ชัน: handleAddSetToSectionExercise — เพิ่ม set ให้ท่าใน section builder */
   const handleAddSetToSectionExercise = (exIdx: number) => {
     setNewSectionExercises((prev) => {
       const updated = [...prev];
@@ -863,6 +930,7 @@ export default function SessionLog() {
     });
   };
 
+  /* ฟังก์ชัน: handleUpdateSectionTrackingFields — toggle tracking field ของท่า */
   const handleUpdateSectionTrackingFields = (
     exerciseIndex: number,
     field: string,
@@ -888,10 +956,12 @@ export default function SessionLog() {
     });
   };
 
+  /* ฟังก์ชัน: handleRemoveExerciseFromSection — ลบท่าออกจาก section builder */
   const handleRemoveExerciseFromSection = (idx: number) => {
     setNewSectionExercises((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  /* ฟังก์ชัน: handleConfirmAddSection — ยืนยันเพิ่ม section ใน exercises list */
   const handleConfirmAddSection = () => {
     if (newSectionExercises.length === 0) {
       toast.error("กรุณาเพิ่มท่าออกกำลังกายอย่างน้อย 1 ท่า");
@@ -963,6 +1033,7 @@ export default function SessionLog() {
     );
   };
 
+  /* ฟังก์ชัน: handleDeleteExercise — ลบท่าออกจาก session */
   const handleDeleteExercise = (exerciseIdx: number) => {
     if (window.confirm("คุณต้องการลบท่านี้ใช่หรือไม่?")) {
       setSessionExercises((prev) =>
@@ -972,6 +1043,7 @@ export default function SessionLog() {
     }
   };
 
+  /* ฟังก์ชัน: handleAddSet — เพิ่ม set ใหม่ให้ท่าที่เลือก (ใน session view) */
   const handleAddSet = (exerciseIdx: number) => {
     setSessionExercises((prev) => {
       const updated = [...prev];
@@ -993,6 +1065,7 @@ export default function SessionLog() {
     toast.success("เพิ่มเซตเรียบร้อย");
   };
 
+  /* ฟังก์ชัน: handleDeleteSet — ลบ set ออกจากท่า (เหลืออย่างน้อย 1 set) */
   const handleDeleteSet = (exerciseIdx: number, setIdx: number) => {
     setSessionExercises((prev) => {
       const updated = [...prev];
@@ -1027,7 +1100,17 @@ export default function SessionLog() {
           <div className="flex items-center justify-between mb-4">
             <Button
               variant="ghost"
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                if (fromPath) {
+                  navigate(fromPath);
+                } else {
+                  navigate(
+                    client?.id
+                      ? `/trainer/clients/${client.id}`
+                      : "/trainer/clients",
+                  );
+                }
+              }}
               className="text-white hover:bg-white/10 -ml-4"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -1087,6 +1170,89 @@ export default function SessionLog() {
         </div>
       </div>
 
+      {/* Day Navigator */}
+      {siblingsSessions.length > 1 &&
+        (() => {
+          const currentIdx = siblingsSessions.findIndex(
+            (s) => s.id === Number(id),
+          );
+          const prevSession =
+            currentIdx > 0 ? siblingsSessions[currentIdx - 1] : null;
+          const nextSession =
+            currentIdx < siblingsSessions.length - 1
+              ? siblingsSessions[currentIdx + 1]
+              : null;
+          const remainingSessions = siblingsSessions.filter(
+            (s) =>
+              s.status !== "completed" &&
+              s.status !== "cancelled" &&
+              s.id !== Number(id),
+          );
+          return (
+            <div className="bg-white border-b border-slate-200 shadow-sm sticky top-[120px] z-40">
+              <div className="container mx-auto px-6 max-w-5xl">
+                <div className="flex items-center justify-between py-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!prevSession}
+                    onClick={() =>
+                      prevSession &&
+                      navigate(`/trainer/sessions/${prevSession.id}/log`)
+                    }
+                    className="gap-1 text-slate-600 hover:text-[#002140]"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Day {currentIdx > 0 ? currentIdx : 1}
+                  </Button>
+                  <div className="flex items-center gap-3">
+                    <div className="text-center">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-[#002140]" />
+                        <span className="font-semibold text-[#002140]">
+                          Day {currentIdx + 1} / {siblingsSessions.length}
+                        </span>
+                      </div>
+                      {programInfo && (
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {programInfo.name}
+                        </p>
+                      )}
+                    </div>
+                    {remainingSessions.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowCancelDialog(true)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 gap-1 text-xs"
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        ต้องการยกเลิกโปรแกรม
+                      </Button>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!nextSession}
+                    onClick={() =>
+                      nextSession &&
+                      navigate(`/trainer/sessions/${nextSession.id}/log`)
+                    }
+                    className="gap-1 text-slate-600 hover:text-[#002140]"
+                  >
+                    Day{" "}
+                    {currentIdx + 2 <= siblingsSessions.length
+                      ? currentIdx + 2
+                      : siblingsSessions.length}
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
       <div className="container mx-auto px-6 py-6 max-w-5xl">
         {/* Progress Card */}
         <Card className="border-[#002140]/20 bg-gradient-to-br from-[#002140]/5 to-transparent mb-6 shadow-sm">
@@ -1102,6 +1268,23 @@ export default function SessionLog() {
                 <p className="text-sm text-muted-foreground">
                   {client?.description || "Training Program"}
                 </p>
+                {programInfo &&
+                  (programInfo.start_date || programInfo.end_date) && (
+                    <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
+                      <Calendar className="h-3.5 w-3.5" />
+                      <span>
+                        {programInfo.start_date
+                          ? `เริ่ม: ${new Date(programInfo.start_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}`
+                          : ""}
+                        {programInfo.start_date && programInfo.end_date
+                          ? " → "
+                          : ""}
+                        {programInfo.end_date
+                          ? `สิ้นสุด: ${new Date(programInfo.end_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}`
+                          : ""}
+                      </span>
+                    </div>
+                  )}
               </div>
               <Badge variant="outline" className="gap-1 bg-white">
                 <Activity className="h-3 w-3" />
@@ -1210,9 +1393,13 @@ export default function SessionLog() {
                             e.sectionOrder === sessionEx.sectionOrder,
                       );
                       const isExpanded = expandedExercises.has(exerciseIdx);
-                      const displayFields = sessionEx.trackingFields?.length
-                        ? sessionEx.trackingFields
-                        : ["reps", "weight", "rpe"];
+                      const displayFields = (
+                        sessionEx.trackingFields?.length
+                          ? sessionEx.trackingFields
+                          : ["reps", "weight", "rpe"]
+                      )
+                        .map(normalizeTrackingFieldKey)
+                        .filter((f) => f !== "sets");
 
                       return (
                         <Card
@@ -1576,7 +1763,13 @@ export default function SessionLog() {
                           variant="outline"
                           className="text-[10px] font-normal"
                         >
-                          {ex.category}
+                          {ex.category === "weight-training"
+                            ? "Weight Training"
+                            : ex.category === "cardio"
+                              ? "Cardio"
+                              : ex.category === "flexibility"
+                                ? "Flexibility"
+                                : ex.category}
                         </Badge>
                       </div>
                     ))}
@@ -1713,7 +1906,7 @@ export default function SessionLog() {
               <div className="space-y-2">
                 <Label>รูปแบบ (Format)</Label>
                 <Select
-                  value={newSection.sectionFormat}
+                  value={newSection.sectionFormat || "regular"}
                   onValueChange={(val) =>
                     setNewSection({ ...newSection, sectionFormat: val })
                   }
@@ -2090,7 +2283,13 @@ export default function SessionLog() {
                       <span className="font-medium text-sm">{ex.name}</span>
                     </div>
                     <Badge variant="outline" className="text-[10px]">
-                      {ex.category}
+                      {ex.category === "weight-training"
+                        ? "Weight Training"
+                        : ex.category === "cardio"
+                          ? "Cardio"
+                          : ex.category === "flexibility"
+                            ? "Flexibility"
+                            : ex.category}
                     </Badge>
                   </div>
                 ))}
@@ -2259,6 +2458,96 @@ export default function SessionLog() {
               ยืนยันจบเซสชัน
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Session Summary Card (แสดงหลังจบเซสชัน) */}
+      {showSummaryCard && (
+        <SessionSummaryCard
+          clientName={client?.name || "Client"}
+          sessionTitle={sessionData?.title || "Training Session"}
+          date={formatDate(sessionDate).full}
+          time={formatDate(sessionDate).time}
+          rating={sessionRating}
+          comment={sessionComment}
+          nextGoals={sessionNextGoals}
+          exercises={sessionExercises.map((ex) => ({
+            name: ex.name,
+            setsCount: ex.sets.length,
+            completed: ex.completed,
+          }))}
+          completedCount={completedExercisesCount}
+          totalCount={sessionExercises.length}
+          onClose={() => {
+            setShowSummaryCard(false);
+            navigate(
+              client ? `/trainer/clients/${client.id}` : "/trainer/calendar",
+            );
+          }}
+        />
+      )}
+
+      {/* Cancel Remaining Days Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              ยกเลิกวันที่เหลือ
+            </DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const completed = siblingsSessions.filter(
+                  (s) => s.status === "completed",
+                ).length;
+                const remaining = siblingsSessions.filter(
+                  (s) => s.status !== "completed" && s.status !== "cancelled",
+                ).length;
+                return `ฝึกไปแล้ว ${completed} วัน — ยกเลิก ${remaining} วันที่เหลือ? ข้อมูลที่ฝึกไปแล้วจะยังคงเก็บไว้`;
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelDialog(false)}
+              disabled={cancelLoading}
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={cancelLoading}
+              onClick={async () => {
+                setCancelLoading(true);
+                try {
+                  const toCancel = siblingsSessions.filter(
+                    (s) => s.status !== "completed" && s.status !== "cancelled",
+                  );
+                  await Promise.all(
+                    toCancel.map((s) =>
+                      api.put(`/sessions/${s.id}`, { status: "cancelled" }),
+                    ),
+                  );
+                  toast.success(`ยกเลิก ${toCancel.length} วันเรียบร้อย`);
+                  setShowCancelDialog(false);
+                  fetchSession();
+                } catch (err) {
+                  console.error(err);
+                  toast.error("ไม่สามารถยกเลิกได้");
+                } finally {
+                  setCancelLoading(false);
+                }
+              }}
+            >
+              {cancelLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <XCircle className="h-4 w-4 mr-2" />
+              )}
+              ยืนยันยกเลิก
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -1,18 +1,7 @@
 import { useState, useEffect } from "react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import {
-  User,
-  Mail,
-  Phone,
-  Calendar,
-  CheckCircle2,
-  LogOut,
-  Shield,
-  Info,
-  Activity,
-  Scale,
-} from "lucide-react";
+import { User, Mail, Calendar, CheckCircle2, LogOut, Info } from "lucide-react";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
 import { clientService, ClientProfile } from "@/services/clientService";
@@ -27,9 +16,8 @@ interface SettingsViewProps {
 
 export function SettingsView({ user, onLogout }: SettingsViewProps) {
   const navigate = useNavigate();
-  // Try to use auth context if available, otherwise fallback
-  const auth = useAuth?.();
-  const logout = auth?.logout;
+  const auth = useAuth();
+  const logout = onLogout || auth?.logout;
 
   const [metricsData, setMetricsData] = useState<Record<string, number>>({});
 
@@ -67,6 +55,19 @@ export function SettingsView({ user, onLogout }: SettingsViewProps) {
     metricsData.bmi ||
     (weight && height ? (weight / Math.pow(height / 100, 2)).toFixed(1) : "-");
 
+  const handleLogout = async () => {
+    try {
+      if (logout) {
+        await logout();
+      }
+      navigate("/login");
+      toast.success("ออกจากระบบสำเร็จ");
+    } catch (error) {
+      console.error("Logout failed", error);
+      toast.error("เกิดข้อผิดพลาดในการออกจากระบบ");
+    }
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
@@ -79,6 +80,14 @@ export function SettingsView({ user, onLogout }: SettingsViewProps) {
             ดูข้อมูลบัญชีของคุณ
           </p>
         </div>
+        <Button
+          variant="outline"
+          className="text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200"
+          onClick={handleLogout}
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          ออกจากระบบ
+        </Button>
       </div>
 
       {!user ? (
@@ -109,11 +118,11 @@ export function SettingsView({ user, onLogout }: SettingsViewProps) {
                 {user.avatar_url ? (
                   <img
                     src={user.avatar_url}
-                    alt={user.name}
+                    alt={user.name || "User"}
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  user.name.charAt(0)
+                  (user.name || "U").charAt(0).toUpperCase()
                 )}
               </div>
               <div className="flex-1">
@@ -122,10 +131,12 @@ export function SettingsView({ user, onLogout }: SettingsViewProps) {
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   เป็นสมาชิกตั้งแต่{" "}
-                  {user.join_date
-                    ? format(new Date(user.join_date), "dd MMM yyyy", {
-                        locale: th,
-                      })
+                  {user.join_date || user.created_at
+                    ? (() => {
+                        const d = new Date(user.join_date || user.created_at);
+                        const bYear = d.getFullYear() + 543;
+                        return `${format(d, "dd MMM", { locale: th })} ${bYear}`;
+                      })()
                     : "-"}
                 </p>
                 <div className="flex items-center gap-2 mt-3">

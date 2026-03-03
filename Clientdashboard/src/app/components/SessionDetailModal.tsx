@@ -201,8 +201,8 @@ export function SessionDetailModal({
                             // Helper for Thai labels
                             const getFieldLabel = (field: string) => {
                               const labels: Record<string, string> = {
-                                reps: "จำนวนครั้ง",
-                                weight: "น้ำหนัก (กก.)",
+                                reps: "REPS",
+                                weight: "WEIGHT",
                                 rpe: "RPE",
                                 duration: "เวลา",
                                 distance: "ระยะทาง",
@@ -214,8 +214,97 @@ export function SessionDetailModal({
                                 incline: "ความชัน",
                                 level: "ระดับ",
                                 laps: "รอบ",
+                                rest: "REST",
                               };
                               return labels[field] || field;
+                            };
+
+                            // Map tracking field names to actual SessionSet property names
+                            // (some fields don't follow the simple actual_${field} pattern)
+                            const getSetValue = (
+                              set: any,
+                              field: string,
+                            ): string => {
+                              // Special field mappings
+                              const fieldMap: Record<
+                                string,
+                                { actual: string; target: string }
+                              > = {
+                                rest: {
+                                  actual: "actual_rest_duration",
+                                  target: "rest_duration",
+                                },
+                                weight: {
+                                  actual: "actual_weight",
+                                  target: "target_weight",
+                                },
+                                reps: {
+                                  actual: "actual_reps",
+                                  target: "target_reps",
+                                },
+                                rpe: {
+                                  actual: "actual_rpe",
+                                  target: "target_rpe",
+                                },
+                                duration: {
+                                  actual: "actual_duration",
+                                  target: "target_duration",
+                                },
+                              };
+
+                              const mapping = fieldMap[field];
+                              const actualKey = mapping
+                                ? mapping.actual
+                                : `actual_${field}`;
+                              const targetKey = mapping
+                                ? mapping.target
+                                : `target_${field}`;
+
+                              const actualVal = set[actualKey];
+                              if (
+                                actualVal !== undefined &&
+                                actualVal !== null
+                              ) {
+                                // Format seconds as mm:ss for rest/duration fields
+                                if (
+                                  (field === "rest" || field === "duration") &&
+                                  typeof actualVal === "number"
+                                ) {
+                                  const m = Math.floor(actualVal / 60);
+                                  const s = actualVal % 60;
+                                  return `${m}:${s.toString().padStart(2, "0")}`;
+                                }
+                                return String(actualVal);
+                              }
+
+                              // Fallback: actual_metadata
+                              const metaVal = set.actual_metadata?.[field];
+                              if (metaVal !== undefined && metaVal !== null)
+                                return String(metaVal);
+
+                              // Fallback: target value
+                              const targetVal = set[targetKey];
+                              if (
+                                targetVal !== undefined &&
+                                targetVal !== null
+                              ) {
+                                if (
+                                  (field === "rest" || field === "duration") &&
+                                  typeof targetVal === "number"
+                                ) {
+                                  const m = Math.floor(targetVal / 60);
+                                  const s = targetVal % 60;
+                                  return `${m}:${s.toString().padStart(2, "0")}`;
+                                }
+                                return String(targetVal);
+                              }
+
+                              // Fallback: target_metadata
+                              const tMetaVal = set.target_metadata?.[field];
+                              if (tMetaVal !== undefined && tMetaVal !== null)
+                                return String(tMetaVal);
+
+                              return "-";
                             };
 
                             return (
@@ -272,20 +361,7 @@ export function SessionDetailModal({
                                                 key={field}
                                                 className="px-4 py-2"
                                               >
-                                                {/* Prioritize Set propery -> Metadata -> Target */}
-                                                {(set as any)[
-                                                  `actual_${field}`
-                                                ] !== undefined
-                                                  ? (set as any)[
-                                                      `actual_${field}`
-                                                    ]
-                                                  : ((
-                                                      set.actual_metadata as any
-                                                    )?.[field] ??
-                                                    (set as any)[
-                                                      `target_${field}`
-                                                    ] ??
-                                                    "-")}
+                                                {getSetValue(set, field)}
                                               </td>
                                             ))}
                                             <td className="px-4 py-2 text-center">

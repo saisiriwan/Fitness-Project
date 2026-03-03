@@ -54,10 +54,22 @@ func (r *dashboardRepository) GetDashboardStats(trainerID int) (*models.Dashboar
 		return nil, err
 	}
 
-	// Total Completed Sessions
+	// Total Monthly Sessions (All statuses this month EXCEPT cancelled)
 	err = r.db.QueryRow(`
 		SELECT COUNT(*) FROM schedules 
-		WHERE trainer_id = $1 AND status = 'completed'
+		WHERE trainer_id = $1 
+		AND status != 'cancelled'
+		AND EXTRACT(MONTH FROM start_time) = EXTRACT(MONTH FROM CURRENT_DATE)
+		AND EXTRACT(YEAR FROM start_time) = EXTRACT(YEAR FROM CURRENT_DATE)
+	`, trainerID).Scan(&stats.TotalMonthlySessions)
+	if err != nil {
+		return nil, err
+	}
+
+	// Total Sessions All-Time (excl. cancelled)
+	err = r.db.QueryRow(`
+		SELECT COUNT(*) FROM schedules 
+		WHERE trainer_id = $1 AND status != 'cancelled'
 	`, trainerID).Scan(&stats.CompletedSessions)
 	if err != nil {
 		return nil, err

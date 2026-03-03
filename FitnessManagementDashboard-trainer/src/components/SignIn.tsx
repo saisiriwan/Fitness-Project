@@ -21,34 +21,34 @@ const SignIn = () => {
   const navigate = useNavigate();
   const { checkAuth } = useAuth();
 
+  /* ฟังก์ชัน: handleSubmit
+     ใช้สำหรับ: ฟอร์ม Login/Register
+     หน้าที่: ส่ง email+password ไป API เพื่อ login หรือ register */
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault(); // ป้องกันหน้า reload
     setLoading(true);
 
     try {
       if (isLogin) {
-        // --- LOGIN LOGIC (Trainer) ---
+        // === ล็อกอิน (Trainer) ===
         await api.post("/auth/login", {
           email,
           password,
         });
-
         toast.success("เข้าสู่ระบบสำเร็จ");
-        await checkAuth();
-        // navigate("/trainer/dashboard"); // หรือปล่อยให้ AuthContext จัดการ
+        await checkAuth(); // เช็คสถานะใหม่ → AuthContext จะ redirect ไปหน้า dashboard
       } else {
-        // --- REGISTER LOGIC (Trainer) ---
+        // === สมัครสมาชิก (Trainer) ===
         await api.post("/auth/register", {
-          username: email.split("@")[0],
+          username: email.split("@")[0], // ใช้ส่วนหน้า email เป็น username
           firstName: firstName,
           lastName: lastName,
           email,
           password,
-          role: "trainer", // ✅ ยังคงเป็น Trainer
+          role: "trainer", // ลงทะเบียนเป็น trainer
         });
-
         toast.success("สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ");
-        setIsLogin(true);
+        setIsLogin(true); // สลับไปโหมด login
       }
     } catch (err: any) {
       console.error("Auth error:", err);
@@ -59,10 +59,14 @@ const SignIn = () => {
     }
   };
 
+  /* ฟังก์ชัน: handleGoogleLogin
+     ใช้สำหรับ: ปุ่ม "Sign in with Google"
+     หน้าที่: redirect ไปหน้า Google OAuth (backend จัดการ callback) */
   const handleGoogleLogin = () => {
-    // ✅ ส่ง role=trainer ไปเหมือนเดิม
-    window.location.href =
-      "http://localhost:8080/api/v1/auth/google/login?role=trainer";
+    // ใช้ baseURL จาก api config เพื่อไม่ต้อง hardcode
+    const baseURL = api.defaults.baseURL || "http://localhost:8080/api/v1";
+    // redirect ไปยัง backend route ที่จัดการ Google OAuth + ส่ง role=trainer
+    window.location.href = `${baseURL}/auth/google/login?role=trainer`;
   };
 
   return (

@@ -53,8 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authService.logout();
     } finally {
       setUser(null);
-      // Optional: redirect to login page via router or window.location
-      window.location.href = "/login";
     }
   };
 

@@ -122,6 +122,7 @@ export default function AssignProgramModal({
 
   // --- API Calls ---
 
+  /* ฟังก์ชัน: fetchClients — ดึงลูกค้าทั้งหมดเพื่อแสดงใน checkbox list */
   const fetchClients = async () => {
     setIsFetchingClients(true);
     try {
@@ -150,6 +151,7 @@ export default function AssignProgramModal({
     }
   };
 
+  /* ฟังก์ชัน: performAssignment — ส่งคำขอ assign โปรแกรมไป API + สร้างตาราง schedule */
   const performAssignment = async () => {
     if (!programId || selectedClientIds.length === 0 || !startDate) return;
 
@@ -202,6 +204,7 @@ export default function AssignProgramModal({
 
   // ... (Logic & Helpers) ...
 
+  /* ฟังก์ชัน: handleToggleClient — toggle เลือก/ยกเลิกลูกค้า */
   const handleToggleClient = (clientId: string) => {
     setSelectedClientIds((prev) =>
       prev.includes(clientId)
@@ -210,6 +213,7 @@ export default function AssignProgramModal({
     );
   };
 
+  /* ฟังก์ชัน: handleAssignClick — ตรวจสอบก่อน assign (เช็ค conflicts โปรแกรมซ้ำ) */
   const handleAssignClick = () => {
     if (selectedClientIds.length === 0) {
       toast.error("กรุณาเลือกลูกเทรนอย่างน้อย 1 คน");

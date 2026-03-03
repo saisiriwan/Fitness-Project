@@ -319,7 +319,6 @@ export default function ClientsList() {
                 <TableHead>เป้าหมาย</TableHead>
                 <TableHead>สถานะ</TableHead>
                 <TableHead>นัดถัดไป</TableHead>
-                <TableHead className="text-right">การดำเนินการ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

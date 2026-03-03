@@ -1,0 +1,98 @@
+name: CI/CD Pipeline — Fitness Project
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # อนุญาตให้ trigger manual จาก GitHub UI
+
+jobs:
+  # ─── Job 1: Deploy Backend Go API (Docker) ───────────────────────────────────
+  deploy-backend:
+    name: 🐳 Deploy Backend API
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy Backend via PowerShell
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\scripts\deploy-backend.ps1"
+          & $scriptPath
+        env:
+          WORKSPACE: ${{ github.workspace }}
+
+  # ─── Job 2: Deploy Client Dashboard (Vite) ───────────────────────────────────
+  deploy-client-dashboard:
+    name: 🖥️ Deploy Client Dashboard
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy Client Dashboard via PowerShell
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\scripts\deploy-client.ps1"
+          & $scriptPath
+        env:
+          WORKSPACE: ${{ github.workspace }}
+
+  # ─── Job 3: Deploy Trainer Dashboard (Vite) ──────────────────────────────────
+  deploy-trainer-dashboard:
+    name: 🏋️ Deploy Trainer Dashboard
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy Trainer Dashboard via PowerShell
+        shell: pwsh
+        run: |
+          $scriptPath = "${{ github.workspace }}\scripts\deploy-trainer.ps1"
+          & $scriptPath
+        env:
+          WORKSPACE: ${{ github.workspace }}
+
+  # ─── Job 4: Health Check (รอให้ทั้ง 3 deploy เสร็จก่อน) ─────────────────────
+  health-check:
+    name: ✅ Health Check
+    runs-on: self-hosted
+    needs: [deploy-backend, deploy-client-dashboard, deploy-trainer-dashboard]
+    steps:
+      - name: Check Backend API health
+        shell: pwsh
+        run: |
+          Start-Sleep -Seconds 5
+          try {
+            $res = Invoke-WebRequest -Uri "http://localhost:8080/health" -UseBasicParsing -TimeoutSec 10
+            if ($res.StatusCode -eq 200) {
+              Write-Host "✅ Backend API is healthy (200 OK)"
+            } else {
+              Write-Host "⚠️ Backend API returned $($res.StatusCode)"
+              exit 1
+            }
+          } catch {
+            Write-Host "❌ Backend API health check failed: $_"
+            exit 1
+          }
+
+      - name: Check Client Dashboard
+        shell: pwsh
+        run: |
+          try {
+            $res = Invoke-WebRequest -Uri "http://localhost:3000" -UseBasicParsing -TimeoutSec 10
+            Write-Host "✅ Client Dashboard is up (Port 3000)"
+          } catch {
+            Write-Host "⚠️ Client Dashboard may not be responding on port 3000"
+          }
+
+      - name: Check Trainer Dashboard
+        shell: pwsh
+        run: |
+          try {
+            $res = Invoke-WebRequest -Uri "http://localhost:3001" -UseBasicParsing -TimeoutSec 10
+            Write-Host "✅ Trainer Dashboard is up (Port 3001)"
+          } catch {
+            Write-Host "⚠️ Trainer Dashboard may not be responding on port 3001"
+          }

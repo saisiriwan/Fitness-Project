@@ -55,7 +55,7 @@ func (r *clientRepository) GetAllClients(trainerID int) ([]models.Client, error)
 		       p.name as current_program_name,
 		       c.fitness_level, COALESCE(c.preferred_workout_days, '{}') as preferred_workout_days, c.workout_frequency_per_week, c.notes
 		FROM clients c
-		LEFT JOIN client_active_programs ap ON c.id = ap.client_id AND ap.status = 'active'
+		LEFT JOIN client_active_programs ap ON c.id = ap.client_id AND ap.status = 'active' AND ap.end_date >= CURRENT_DATE
 		LEFT JOIN programs p ON ap.program_id = p.id
 		WHERE c.trainer_id = $1
 		ORDER BY c.created_at DESC

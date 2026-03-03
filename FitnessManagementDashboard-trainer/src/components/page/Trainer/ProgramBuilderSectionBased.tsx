@@ -82,7 +82,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import api from "@/lib/api";
 import AssignProgramModal from "./AssignProgramModal";
 
-import { SharedExercise, DEFAULT_TRACKING_FIELDS } from "@/types/exercise";
+import {
+  SharedExercise,
+  DEFAULT_TRACKING_FIELDS,
+  normalizeTrackingFieldKey,
+} from "@/types/exercise";
 
 // --- Interfaces ---
 
@@ -113,7 +117,6 @@ interface ProgramExercise {
   watts?: any;
   rpm?: any;
   rounds?: any;
-  video_link?: string;
   trackingFields?: string[];
 }
 
@@ -184,7 +187,6 @@ interface ExerciseSet {
   watts?: number;
   rpm?: number;
   rounds?: number;
-  video_link?: string;
 }
 
 interface NewSectionExercise {
@@ -326,7 +328,7 @@ export default function ProgramBuilderSectionBased() {
   );
   const [newSection, setNewSection] = useState<Partial<ProgramSection>>({
     sectionType: "warmup",
-    sectionFormat: "straight-sets",
+    sectionFormat: "regular",
     name: "",
     duration: 10,
     rounds: 3,
@@ -377,7 +379,7 @@ export default function ProgramBuilderSectionBased() {
 
   useEffect(() => {
     fetchInitialData();
-  }, []);
+  }, [location.pathname]); // Re-fetch all programs whenever returning to this tab
 
   const fetchInitialData = async () => {
     try {
@@ -411,6 +413,9 @@ export default function ProgramBuilderSectionBased() {
       });
 
       assignments.forEach((assign: any) => {
+        // หากถูกระบุว่า cancelled จะไม่นับ (รองรับกรณี status เป็น null/undefined ด้วย)
+        if (assign.status === "cancelled") return;
+
         const parentId = assign.parentProgramId.toString();
         if (programsMap.has(parentId)) {
           const parent = programsMap.get(parentId);
@@ -522,7 +527,6 @@ export default function ProgramBuilderSectionBased() {
                       watts: ex.watts,
                       rpm: ex.rpm,
                       rounds: ex.rounds,
-                      video_link: ex.video_link,
                       trackingFields: ex.tracking_fields
                         ? ex.tracking_fields.map((f: string) => f.toLowerCase())
                         : undefined,
@@ -657,7 +661,7 @@ export default function ProgramBuilderSectionBased() {
   const resetSectionForm = () => {
     setNewSection({
       sectionType: "warmup",
-      sectionFormat: "straight-sets",
+      sectionFormat: "regular",
       name: "",
       duration: 10,
       rounds: 3,
@@ -670,6 +674,8 @@ export default function ProgramBuilderSectionBased() {
     setIsQuickAddMode(false);
     setSelectedDayId(null);
     setSelectedDayNumber(null);
+    setSwapExerciseIndex(null);
+    setExerciseSearchTerm("");
   };
 
   // --- Actions ---
@@ -762,8 +768,8 @@ export default function ProgramBuilderSectionBased() {
         name: `${originalProgram.name} (Copy)`,
         description: originalProgram.description,
         is_template: originalProgram.isTemplate,
-        duration_weeks: originalProgram.duration,
-        days_per_week: originalProgram.daysPerWeek,
+        duration_weeks: originalProgram.duration || 1,
+        days_per_week: originalProgram.daysPerWeek || 7,
       });
       const newProgramId = progRes.data.id;
       const sourceRes = await api.get(`/programs/${programId}`);
@@ -792,9 +798,10 @@ export default function ProgramBuilderSectionBased() {
                 type: sec.type,
                 format: sec.format,
                 name: sec.name,
-                duration_seconds: sec.duration_seconds,
-                work_seconds: sec.work_seconds,
-                rest_seconds_section: sec.rest_seconds_section,
+                duration_seconds: sec.duration_seconds || sec.duration || 0,
+                work_seconds: sec.work_seconds || sec.workTime || 0,
+                rest_seconds_section:
+                  sec.rest_seconds_section || sec.restTime || 0,
                 rounds: sec.rounds,
                 order: sec.order,
                 notes: sec.notes,
@@ -811,10 +818,11 @@ export default function ProgramBuilderSectionBased() {
                       weight: ex.weight,
                       distance: ex.distance,
                       pace: ex.pace,
-                      duration_seconds: ex.duration_seconds,
-                      rest_seconds: ex.rest_seconds,
+                      duration_seconds:
+                        ex.duration_seconds || ex.durationSeconds || 0,
+                      rest_seconds: ex.rest_seconds || ex.restSeconds || 0,
                       rpe: ex.rpe,
-                      rpe_target: ex.rpe_target,
+                      rpe_target: ex.rpe_target || ex.rpeTarget,
                       side: ex.side,
                       notes: ex.notes,
                       order: ex.order,
@@ -835,7 +843,6 @@ export default function ProgramBuilderSectionBased() {
                       watts: ex.watts,
                       rpm: ex.rpm,
                       rounds: ex.rounds,
-                      video_link: ex.video_link || "",
                       tracking_fields: ex.tracking_fields || [],
                     }),
                   ),
@@ -1146,7 +1153,9 @@ export default function ProgramBuilderSectionBased() {
           const timeArr = setsToSecondsArray(ex.sets, "time");
           const restArr = setsToSecondsArray(ex.sets, "rest");
           const aggDuration =
-            durationArr.find((v) => v > 0) || timeArr.find((v) => v > 0) || 0;
+            durationArr.find((v) => Number(v) > 0) ||
+            timeArr.find((v) => Number(v) > 0) ||
+            0;
           const aggRest = restArr.find((v) => v > 0) || 0;
           const firstSet = ex.sets[0];
           const getSetValues = (
@@ -1192,7 +1201,6 @@ export default function ProgramBuilderSectionBased() {
             rest_seconds: aggRest,
             rpe_target: firstSet?.rpe || undefined,
             order: idx + 1,
-            video_link: getSetValues(ex.sets, "video_link", "")[0] || "", // ✅ FIX #10
             tracking_fields: ex.trackingFields || [],
           });
         });
@@ -1316,32 +1324,46 @@ export default function ProgramBuilderSectionBased() {
     isChecked: boolean,
   ) => {
     const updated = [...newSectionExercises];
-    let currentFields = updated[exerciseIndex].trackingFields;
-    if (!currentFields) {
+    let currentFields = (updated[exerciseIndex].trackingFields || []).map(
+      normalizeTrackingFieldKey,
+    );
+    if (!currentFields || currentFields.length === 0) {
       const exData = exercisesList.find(
         (e) => e.id === updated[exerciseIndex].exerciseId,
       );
-      currentFields = getFields(exData);
+      currentFields = getFields(exData).map(normalizeTrackingFieldKey);
     }
+
+    // Normalize incoming field just in case
+    const normalizedField = normalizeTrackingFieldKey(field);
+
     if (isChecked) {
-      if (!currentFields.includes(field))
-        currentFields = [...currentFields, field];
+      if (!currentFields.includes(normalizedField))
+        currentFields = [...currentFields, normalizedField];
     } else {
-      currentFields = currentFields.filter((f) => f !== field);
+      currentFields = currentFields.filter((f) => f !== normalizedField);
     }
-    updated[exerciseIndex].trackingFields = currentFields;
+
+    // Save unique normalized fields
+    updated[exerciseIndex].trackingFields = Array.from(new Set(currentFields));
     setNewSectionExercises(updated);
   };
 
   const handleAddExerciseToNewSection = (exId: string) => {
     const ex = exercisesList.find((e) => e.id === exId);
     if (!ex) return;
+
+    // Normalize fields from DB immediately
+    const normalizedExFields = Array.from(
+      new Set((ex.trackingFields || []).map(normalizeTrackingFieldKey)),
+    );
+
     if (swapExerciseIndex !== null) {
       const updated = [...newSectionExercises];
       updated[swapExerciseIndex] = {
         ...updated[swapExerciseIndex],
         exerciseId: ex.id,
-        trackingFields: ex.trackingFields,
+        trackingFields: normalizedExFields,
       };
       setNewSectionExercises(updated);
       setSwapExerciseIndex(null);
@@ -1350,7 +1372,7 @@ export default function ProgramBuilderSectionBased() {
         ...newSectionExercises,
         {
           exerciseId: ex.id,
-          trackingFields: ex.trackingFields,
+          trackingFields: normalizedExFields,
           sets: Array(newSection.rounds || 3)
             .fill(0)
             .map((_, i) => ({ setNumber: i + 1 })),
@@ -1440,19 +1462,27 @@ export default function ProgramBuilderSectionBased() {
     setShowEditExerciseModal(true);
   };
 
-  // ✅ FIX Bug #2, #7, #10, Duration: handleSaveEditedExercise
   const handleSaveEditedExercise = async () => {
     if (!editingExercise || !editingExerciseSets.length) return;
-    const getSetsArr = (field: keyof ExerciseSet, fallback: any = null) =>
+    const getSetsArr = (
+      field: keyof ExerciseSet,
+      fallback: any = null,
+      isString: boolean = false,
+    ) =>
       editingExerciseSets.map((s) => {
         const v = s[field];
-        return v === undefined || v === null || v === "" ? fallback : v;
+        if (v === undefined || v === null || v === "") {
+          return fallback;
+        }
+        return isString ? String(v) : Number(v) || fallback;
       });
     const durationArray = setsToSecondsArray(editingExerciseSets, "duration");
     const timeArray = setsToSecondsArray(editingExerciseSets, "time");
     const restArray = setsToSecondsArray(editingExerciseSets, "rest");
     const aggDuration =
-      durationArray.find((v) => v > 0) || timeArray.find((v) => v > 0) || 0;
+      durationArray.find((v) => Number(v) > 0) ||
+      timeArray.find((v) => Number(v) > 0) ||
+      0;
     const aggRest = restArray.find((v) => v > 0) || 0;
     const { sectionId: realSectionId, order: exerciseOrder } =
       findExerciseSectionInfo(editingExercise.id);
@@ -1464,10 +1494,10 @@ export default function ProgramBuilderSectionBased() {
       reps: getSetsArr("reps", 0),
       weight: getSetsArr("weight", 0),
       distance: getSetsArr("distance", 0),
-      pace: getSetsArr("pace", ""),
-      side: getSetsArr("side", ""),
-      tempo: getSetsArr("tempo", ""),
-      notes: getSetsArr("notes", ""),
+      pace: getSetsArr("pace", "", true),
+      side: getSetsArr("side", "", true),
+      tempo: getSetsArr("tempo", "", true),
+      notes: getSetsArr("notes", "", true),
       speed: getSetsArr("speed", 0),
       cadence: getSetsArr("cadence", 0),
       distance_long: getSetsArr("distance_long", 0),
@@ -1487,7 +1517,6 @@ export default function ProgramBuilderSectionBased() {
       duration_seconds: aggDuration,
       rest_seconds: aggRest,
       rpe_target: editingExerciseSets[0]?.rpe || undefined,
-      video_link: editingExercise.video_link || "", // ✅ FIX #10
       order: exerciseOrder, // ✅ FIX #7
       tracking_fields: editingExercise.trackingFields || [],
     };
@@ -2046,6 +2075,16 @@ export default function ProgramBuilderSectionBased() {
                           onClick={() => {
                             setSelectedDayId(day.id);
                             setSelectedDayNumber(day.dayNumber);
+                            setNewSection({
+                              sectionType: "warmup",
+                              sectionFormat: "regular",
+                              name: "",
+                              duration: 10,
+                              rounds: 3,
+                              workTime: 30,
+                              restTime: 15,
+                              exercises: [],
+                            });
                             setShowAddSectionModal(true);
                             setIsQuickAddMode(false);
                           }}
@@ -2073,6 +2112,16 @@ export default function ProgramBuilderSectionBased() {
                             onClick={() => {
                               setSelectedDayId(day.id);
                               setSelectedDayNumber(day.dayNumber);
+                              setNewSection({
+                                sectionType: "warmup",
+                                sectionFormat: "regular",
+                                name: "",
+                                duration: 10,
+                                rounds: 3,
+                                workTime: 30,
+                                restTime: 15,
+                                exercises: [],
+                              });
                               setShowAddSectionModal(true);
                               setIsQuickAddMode(false);
                             }}
@@ -2147,17 +2196,19 @@ export default function ProgramBuilderSectionBased() {
                                       (e) => e.id.toString() === ex.exerciseId,
                                     );
                                     const getDisplayFields = () => {
-                                      if (ex.trackingFields?.length)
-                                        return ex.trackingFields
-                                          .map((f: string) => f.toLowerCase())
-                                          .filter((f: string) => f !== "sets");
-                                      if (exData?.trackingFields?.length)
-                                        return exData.trackingFields
-                                          .map((f: string) => f.toLowerCase())
-                                          .filter((f: string) => f !== "sets");
-                                      return getFields(exData).filter(
-                                        (f) => f !== "sets",
-                                      );
+                                      let rawFields: string[] = [];
+                                      if (ex.trackingFields?.length) {
+                                        rawFields = ex.trackingFields;
+                                      } else if (
+                                        exData?.trackingFields?.length
+                                      ) {
+                                        rawFields = exData.trackingFields;
+                                      } else {
+                                        rawFields = getFields(exData);
+                                      }
+                                      return rawFields
+                                        .map(normalizeTrackingFieldKey)
+                                        .filter((f) => f !== "sets");
                                     };
                                     const fields = getDisplayFields();
                                     const getSetValue = (
@@ -2424,7 +2475,7 @@ export default function ProgramBuilderSectionBased() {
                 <div className="space-y-2">
                   <Label>รูปแบบ (Format)</Label>
                   <Select
-                    value={newSection.sectionFormat}
+                    value={newSection.sectionFormat || "regular"}
                     onValueChange={(val) =>
                       setNewSection({ ...newSection, sectionFormat: val })
                     }
@@ -2777,7 +2828,13 @@ export default function ProgramBuilderSectionBased() {
                 >
                   <span>{ex.name}</span>
                   <Badge variant="outline" className="text-[10px]">
-                    {ex.category}
+                    {ex.category === "weight-training"
+                      ? "Weight Training"
+                      : ex.category === "cardio"
+                        ? "Cardio"
+                        : ex.category === "flexibility"
+                          ? "Flexibility"
+                          : ex.category}
                   </Badge>
                 </div>
               ))}
@@ -2925,7 +2982,7 @@ export default function ProgramBuilderSectionBased() {
                 setIsQuickAddMode(false);
                 setNewSection({
                   sectionType: "main",
-                  sectionFormat: "straight-sets",
+                  sectionFormat: "regular",
                   name: "",
                   duration: 45,
                   exercises: [],
@@ -2962,7 +3019,7 @@ export default function ProgramBuilderSectionBased() {
                 setIsQuickAddMode(true);
                 setNewSection({
                   sectionType: "main",
-                  sectionFormat: "straight-sets",
+                  sectionFormat: "regular",
                   name: "Main Workout",
                   exercises: [],
                 });

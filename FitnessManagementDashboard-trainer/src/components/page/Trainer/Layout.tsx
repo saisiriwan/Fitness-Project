@@ -162,6 +162,34 @@ function MobileBottomNav() {
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuth();
+  React.useEffect(() => {
+    if (!user?.picture) return;
+
+    // #region agent log
+    fetch(
+      "http://127.0.0.1:7288/ingest/7fcceece-6d36-453b-864c-342a0eb56a3b",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "16d09d",
+        },
+        body: JSON.stringify({
+          sessionId: "16d09d",
+          runId: "pre-fix",
+          hypothesisId: "H3",
+          location: "Layout.tsx:171",
+          message: "Layout avatar render picture",
+          data: {
+            picture: user.picture,
+          },
+          timestamp: Date.now(),
+        }),
+      },
+    ).catch(() => {});
+    // #endregion
+  }, [user?.picture]);
+
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
 

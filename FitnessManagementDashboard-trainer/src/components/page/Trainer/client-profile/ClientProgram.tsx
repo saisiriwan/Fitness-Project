@@ -44,6 +44,9 @@ interface Program {
   days_per_week: number;
   client_id?: number;
   is_template: boolean;
+  status?: string;
+  start_date?: string;
+  end_date?: string;
   assignedClients?: any[]; // Mock compatibility if needed
   weeks?: ProgramWeek[]; // Full details
 }
@@ -81,13 +84,15 @@ export default function ClientProgram({ client }: ClientProgramProps) {
     adherence: 0,
   });
   const [loading, setLoading] = useState(false);
+  const [programSchedules, setProgramSchedules] = useState<any[]>([]);
 
-  // Fetch all data (Programs, Details, Sessions)
+  /* ฟังก์ชัน: fetchData
+     ใช้สำหรับ: ทุกส่วน (โหลดเริ่มต้น)
+     หน้าที่: ดึงโปรแกรม + ตารางเรียน (schedules) + คำนวณความก้าวหน้า */
   const fetchData = async () => {
     try {
       setLoading(true);
-
-      // Fetch programs and sessions in parallel
+      // ดึงโปรแกรมทั้งหมด + ตารางเรียนของลูกค้า พร้อมกัน (Promise.all)
       const [programsRes, sessionsRes] = await Promise.all([
         api.get("/programs"),
         api.get(`/schedules?client_id=${client.id}`),
@@ -95,22 +100,25 @@ export default function ClientProgram({ client }: ClientProgramProps) {
 
       const allPrograms: Program[] = programsRes.data || [];
       const allSchedules = sessionsRes.data || [];
-
       setPrograms(allPrograms);
 
-      // Find program assigned to THIS client
+      // หาโปรแกรมที่ assign ให้ลูกค้าคนนี้ (client_id ตรงกัน)
       const assigned = allPrograms.find((p) => p.client_id === client.id);
 
       if (assigned) {
         setCurrentProgram(assigned);
-
-        // Fetch details for the assigned program
+        // ดึงรายละเอียดโปรแกรม (วัน, section, ท่า)
         const detailsRes = await api.get(`/programs/${assigned.id}`);
         setProgramDetails(detailsRes.data);
-
-        // Calculate Progress
+        // เก็บ schedules ของโปรแกรมนี้
+        const progSchedules = allSchedules.filter(
+          (s: any) => s.program_id === assigned.id,
+        );
+        setProgramSchedules(progSchedules);
+        // คำนวณความก้าวหน้า
         calculateProgress(assigned, detailsRes.data, allSchedules);
       } else {
+        // ไม่มีโปรแกรม
         setCurrentProgram(null);
         setProgramDetails(null);
       }
@@ -122,6 +130,9 @@ export default function ClientProgram({ client }: ClientProgramProps) {
     }
   };
 
+  /* ฟังก์ชัน: calculateProgress
+     ใช้สำหรับ: Card "ความก้าวหน้าโปรแกรม"
+     หน้าที่: คำนวณ % ความก้าวหน้า + อัตราการเข้าร่วม (adherence) */
   const calculateProgress = (
     program: any,
     details: any,
@@ -129,65 +140,38 @@ export default function ClientProgram({ client }: ClientProgramProps) {
   ) => {
     if (!program || !details) return;
 
-    // Filter schedules for this program (or fallback to linking by date if needed)
-    // Assuming backend populates program_id in schedules as confirmed
+    // กรอง schedules เฉพาะโปรแกรมนี้
     const programSchedules = allSchedules.filter(
       (s: any) => s.program_id === program.id,
     );
 
-    // 1. Calculate Total Sessions
-    // Use program days length (actual planned days) if available, else fallback to frequency * duration
+    // 1. คำนวณจำนวนเซสชันทั้งหมดที่ต้องทำ
     let total = 0;
-
-    // Filter training days (exclude rest days if marked, or just count defined days)
-    // Structure: details.days is array of days in the program
-    // If it's a template week (days 1-7), we multiply by duration.
-    // If it's a full schedule (days 1-30), we just count.
-    // Based on `getStructuredWeeks`, it seems to be flattened days.
-    // Let's check if 'days' has 'week_number'.
-    // If max week_number > 1, it's likely a full schedule.
-
     if (details.days && details.days.length > 0) {
-      // Check if it looks like a template (max week == 1 and duration > 1)
-      // But usually 'assign' expands it.
-      // Let's assume details.days is the full expanded schedule if assigned.
-      // Or if it used a template, it might be just the template.
-      // However, for progress, we usually care about "Planned Sessions".
-      // If backend `schedules` table is populated upon assignment, we should count `schedules` table!
-      // WAIT. If `schedules` rows are created upfront, then `programSchedules.length` IS the total!
-      // Let's verify if `schedules` are created upfront.
-      // `AssignProgramToClients` usually creates schedules.
-      // If so, Total = programSchedules.length.
-
-      // BUT, the user prompt said "Ensure totalSessions ... use programDetails.days.length".
-      // Let's stick to user request: use programDetails.days.length.
+      // นับเฉพาะวันที่ไม่ใช่วันพัก
       total = details.days.filter((d: any) => !d.is_rest).length;
-
-      // Fallback if is_rest not present, just count all days that have exercises?
-      // details.days usually are training days.
+      // Fallback ถ้าไม่มี is_rest flag → นับทุกวัน
       if (total === 0 && details.days.length > 0) total = details.days.length;
     } else {
-      // Fallback
+      // Fallback: duration * frequency
       total = (program.duration_weeks || 4) * (program.days_per_week || 3);
     }
 
-    // 2. Calculate Completed Sessions
+    // 2. นับเซสชันที่เสร็จแล้ว
     const completed = programSchedules.filter(
       (s: any) => s.status && s.status.toLowerCase() === "completed",
     ).length;
 
-    // 3. Adherence
-    // Count schedules that should have been done by now (start_time < now)
+    // 3. อัตราการเข้าร่วม (adherence) = เสร็จ / เซสชันที่ผ่านมาแล้ว
     const now = new Date();
     const pastSchedules = programSchedules.filter(
       (s: any) => new Date(s.start_time) < now,
     );
     const pastCount = pastSchedules.length;
-
-    // Adherence = completed / past_due_sessions
     const adherence =
       pastCount > 0 ? Math.round((completed / pastCount) * 100) : 0;
 
+    // เก็บผลลัพธ์ใน state
     setProgramProgress({
       completed,
       total,
@@ -203,19 +187,24 @@ export default function ClientProgram({ client }: ClientProgramProps) {
   }, [client.id]);
 
   const availablePrograms = programs.filter((p) => p.is_template);
+  const pastPrograms = programs.filter(
+    (p) =>
+      p.client_id === client.id &&
+      (!currentProgram || p.id !== currentProgram.id),
+  );
 
+  /* ฟังก์ชัน: handleAssignProgram
+     ใช้สำหรับ: Dialog เลือกโปรแกรม → ปุ่ม "เลือกโปรแกรมนี้"
+     หน้าที่: clone template โปรแกรมให้ลูกค้าผ่าน API /assign */
   const handleAssignProgram = async (programId: number) => {
     try {
-      // API call to clone program for client
-      // Fix: Backend expects 'client_ids' as an array, not 'client_id'
+      // ส่ง client_ids เป็น array (ตามที่ backend คาดหวัง)
       await api.post(`/programs/${programId}/assign`, {
         client_ids: [client.id],
       });
       toast.success("มอบหมายโปรแกรมเรียบร้อยแล้ว");
-      setShowProgramSelector(false);
-      toast.success("มอบหมายโปรแกรมเรียบร้อยแล้ว");
-      setShowProgramSelector(false);
-      fetchData(); // Refresh to see the new assigned program
+      setShowProgramSelector(false); // ปิด dialog
+      fetchData(); // โหลดใหม่เพื่อแสดงโปรแกรมที่ assign ใหม่
     } catch (err: any) {
       console.error(err);
       const msg =
@@ -224,8 +213,12 @@ export default function ClientProgram({ client }: ClientProgramProps) {
     }
   };
 
+  /* ฟังก์ชัน: handleRemoveProgram
+     ใช้สำหรับ: ปุ่ม "ยกเลิกโปรแกรม"
+     หน้าที่: ยืนยันผู้ใช้ → ลบโปรแกรมจาก API (DELETE) */
   const handleRemoveProgram = async () => {
-    if (!currentProgram) return;
+    if (!currentProgram) return; // ไม่มีโปรแกรม
+    // ยืนยันก่อนลบ
     if (
       !confirm(
         "คุณแน่ใจหรือไม่ที่จะยกเลิกโปรแกรมนี้? การดำเนินการนี้จะลบข้อมูลโปรแกรมของลูกค้า",
@@ -234,34 +227,37 @@ export default function ClientProgram({ client }: ClientProgramProps) {
       return;
 
     try {
-      await api.delete(`/programs/${currentProgram.id}`);
+      await api.delete(`/programs/${currentProgram.id}`); // ลบที่ backend
       toast.success("ยกเลิกโปรแกรมเรียบร้อยแล้ว");
-      setCurrentProgram(null);
+      setCurrentProgram(null); // ล้าง state
       setProgramDetails(null);
-      // fetchPrograms(); // Optional, local state cleared is enough or refresh
     } catch (err) {
       toast.error("เกิดข้อผิดพลาดในการลบโปรแกรม");
     }
   };
 
-  // Helper to structure 'days' array from backend into 'weeks'
+  /* ฟังก์ชัน: getStructuredWeeks
+     ใช้สำหรับ: Card "โครงสร้างโปรแกรม"
+     หน้าที่: แปลง flat array ของวันจาก backend → จัดกลุ่มตามสัปดาห์ */
   const getStructuredWeeks = () => {
-    if (!programDetails?.days) return [];
+    if (!programDetails?.days) return []; // ถ้าไม่มีข้อมูล → array ว่าง
 
     const days: any[] = programDetails.days;
-    // Group by week
+    // จัดกลุ่มวันตาม week_number
     const weeks: Record<number, any[]> = {};
     days.forEach((d) => {
       if (!weeks[d.week_number]) weeks[d.week_number] = [];
       weeks[d.week_number].push(d);
     });
 
+    // แปลงเป็น array ของสัปดาห์ + flatten exercises จาก sections
     return Object.entries(weeks).map(([weekNum, weekDays]) => ({
       weekNumber: parseInt(weekNum),
       days: weekDays.map((d: any) => ({
+        dayId: d.id,
         dayNumber: d.day_number,
         name: d.name,
-        // Flatten exercises from sections (CamelCase: sections -> exercises)
+        // รวมท่าจากทุก section เข้าด้วยกัน (flatMap)
         exercises: d.sections
           ? d.sections.flatMap((s: any) => s.exercises || [])
           : [],
@@ -270,6 +266,50 @@ export default function ClientProgram({ client }: ClientProgramProps) {
   };
 
   const weeks = getStructuredWeeks();
+
+  // สร้าง helper เพื่อเช็คว่าโปรแกรมจบหรือยัง
+  const isProgramCompleted = () => {
+    // 1. เช็คว่า "เซสชันของวันสุดท้ายในโปรแกรม" ถูกตั้งสถานะเป็น "completed" หรือยัง
+    // (ดูจาก schedule ล่าสุด/ตัวสุดท้ายของโปรแกรมนี้)
+    if (programSchedules && programSchedules.length > 0) {
+      // เรียงลำดับตารางเวลาจากเริ่มไปจบ (เกรงว่า API อาจไม่ได้ส่งมาเรียงเวลา 100%)
+      const sortedSchedules = [...programSchedules].sort(
+        (a: any, b: any) =>
+          new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
+      );
+
+      const lastSchedule = sortedSchedules[sortedSchedules.length - 1];
+
+      // ถ้าเซสชันสุดท้าย (คิวสุดท้ายของโปรแกรม) เพิ่งทำเสร็จ ถือว่าจบโปรแกรมเลยไม่ต้องรอวันอื่น
+      if (
+        lastSchedule?.status &&
+        lastSchedule.status.toLowerCase() === "completed"
+      ) {
+        return true;
+      }
+    }
+
+    // 2. ถ้าเซสชันสุดท้ายยังไม่เสร็จ (หรือลูกค้าสมัครโปรแกรมไว้แต่ไม่ได้ทำ)
+    // ให้ fallback ไปเช็คจากวันที่สิ้นสุด
+    if (programDetails?.end_date) {
+      const endDate = new Date(programDetails.end_date);
+      const today = new Date();
+      endDate.setHours(23, 59, 59, 999);
+      return today > endDate;
+    }
+
+    return false;
+  };
+
+  const programCompleted = isProgramCompleted();
+
+  // สร้าง mapping: program_day_id → schedule (วันที่จริง + status)
+  const dayScheduleMap: Record<number, any> = {};
+  programSchedules.forEach((s: any) => {
+    if (s.program_day_id) {
+      dayScheduleMap[s.program_day_id] = s;
+    }
+  });
 
   return (
     <div className="space-y-6">
@@ -294,8 +334,18 @@ export default function ClientProgram({ client }: ClientProgramProps) {
                     onOpenChange={setShowProgramSelector}
                   >
                     <DialogTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        เปลี่ยนโปรแกรม
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={
+                          programCompleted
+                            ? "bg-navy-900 border-navy-900 text-white hover:bg-navy-800 hover:text-white"
+                            : ""
+                        }
+                      >
+                        {programCompleted
+                          ? "มอบหมายโปรแกรมใหม่"
+                          : "เปลี่ยนโปรแกรม"}
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-2xl">
@@ -303,7 +353,7 @@ export default function ClientProgram({ client }: ClientProgramProps) {
                         <DialogTitle>เลือกโปรแกรมใหม่</DialogTitle>
                         <DialogDescription>
                           เลือกโปรแกรมที่ต้องการมอบหมายให้ {client.name}{" "}
-                          (โปรแกรมเดิมจะถูกลบ)
+                          {programCompleted ? "" : "(โปรแกรมเดิมจะถูกลบ)"}
                         </DialogDescription>
                       </DialogHeader>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
@@ -343,7 +393,7 @@ export default function ClientProgram({ client }: ClientProgramProps) {
                                     // Remove old first? Or let backend handle?
                                     // Safest to remove old first or have backend handle replacement.
                                     // For now, let's just assign new.
-                                    if (currentProgram) {
+                                    if (currentProgram && !programCompleted) {
                                       await api.delete(
                                         `/programs/${currentProgram.id}`,
                                       );
@@ -360,15 +410,17 @@ export default function ClientProgram({ client }: ClientProgramProps) {
                       </div>
                     </DialogContent>
                   </Dialog>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRemoveProgram}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash className="h-4 w-4 mr-2" />
-                    ยกเลิกโปรแกรม
-                  </Button>
+                  {!programCompleted && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRemoveProgram}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash className="h-4 w-4 mr-2" />
+                      ยกเลิกโปรแกรม
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -388,11 +440,34 @@ export default function ClientProgram({ client }: ClientProgramProps) {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">สถานะ</p>
-                  <Badge className="bg-green-100 text-green-700 border-0">
-                    กำลังใช้งาน
-                  </Badge>
+                  {programCompleted ? (
+                    <Badge className="bg-slate-100 text-slate-700 border-0">
+                      เสร็จสิ้นแล้ว
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-green-100 text-green-700 border-0">
+                      กำลังใช้งาน
+                    </Badge>
+                  )}
                 </div>
               </div>
+              {programDetails &&
+                (programDetails.start_date || programDetails.end_date) && (
+                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-slate-100 text-sm text-slate-600">
+                    <Calendar className="h-4 w-4 text-[#002140]" />
+                    <span>
+                      {programDetails.start_date
+                        ? `เริ่ม: ${new Date(programDetails.start_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}`
+                        : ""}
+                      {programDetails.start_date && programDetails.end_date
+                        ? " → "
+                        : ""}
+                      {programDetails.end_date
+                        ? `สิ้นสุด: ${new Date(programDetails.end_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}`
+                        : ""}
+                    </span>
+                  </div>
+                )}
             </CardContent>
           </Card>
 
@@ -468,8 +543,36 @@ export default function ClientProgram({ client }: ClientProgramProps) {
                             className="border border-slate-100 rounded-xl p-3 md:p-4 bg-slate-50/50 hover:bg-slate-50 transition-colors"
                           >
                             <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
-                              <div className="font-semibold text-sm text-navy-900">
-                                วันที่ {day.dayNumber}: {day.name}
+                              <div>
+                                <div className="font-semibold text-sm text-navy-900">
+                                  วันที่ {day.dayNumber}: {day.name}
+                                </div>
+                                {day.dayId && dayScheduleMap[day.dayId] && (
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    <Calendar className="h-3 w-3 text-slate-400" />
+                                    <span className="text-[10px] text-slate-500">
+                                      {new Date(
+                                        dayScheduleMap[day.dayId].start_time,
+                                      ).toLocaleDateString("th-TH", {
+                                        weekday: "short",
+                                        day: "numeric",
+                                        month: "short",
+                                      })}
+                                    </span>
+                                    {dayScheduleMap[day.dayId].status ===
+                                      "completed" && (
+                                      <span className="text-[9px] text-green-600 font-medium">
+                                        ✓
+                                      </span>
+                                    )}
+                                    {dayScheduleMap[day.dayId].status ===
+                                      "cancelled" && (
+                                      <span className="text-[9px] text-red-500 font-medium">
+                                        ยกเลิก
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                               <div className="text-[10px] font-bold text-navy-600 bg-white px-2.5 py-0.5 rounded-full border border-slate-200 flex items-center justify-center shadow-sm">
                                 {day.exercises?.length || 0} ท่า
@@ -613,6 +716,69 @@ export default function ClientProgram({ client }: ClientProgramProps) {
                 </div>
               </DialogContent>
             </Dialog>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Program History */}
+      {pastPrograms.length > 0 && (
+        <Card className="border-none shadow-sm rounded-2xl bg-white ring-1 ring-slate-100">
+          <CardHeader className="pb-3 border-b border-slate-100/50">
+            <CardTitle className="text-lg">ประวัติโปรแกรม</CardTitle>
+            <CardDescription>
+              โปรแกรมทั้งหมดที่เคยมอบหมายให้ {client.name}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-3">
+            {pastPrograms.map((p) => (
+              <div
+                key={p.id}
+                className="flex flex-col md:flex-row md:items-center justify-between p-4 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors"
+                style={{ opacity: p.status === "cancelled" ? 0.7 : 1 }}
+              >
+                <div>
+                  <h4 className="font-semibold text-navy-900">{p.name}</h4>
+                  <p className="text-sm text-slate-500 mt-1 line-clamp-1">
+                    {p.description || "ไม่มีรายละเอียด"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 mt-3 md:mt-0 text-sm">
+                  <div className="flex flex-col md:items-end">
+                    <span className="text-slate-500 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" />
+                      {p.duration_weeks} สัปดาห์ ({p.days_per_week} วัน/สัปดาห์)
+                    </span>
+                    {p.start_date && (
+                      <span className="text-xs text-slate-400 mt-0.5">
+                        เริ่ม:{" "}
+                        {new Date(p.start_date).toLocaleDateString("th-TH", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                        {p.end_date &&
+                          ` - ${new Date(p.end_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}`}
+                      </span>
+                    )}
+                  </div>
+                  {p.status === "cancelled" ? (
+                    <Badge
+                      variant="outline"
+                      className="text-red-600 border-red-200 bg-red-50 text-xs"
+                    >
+                      ยกเลิกแล้ว
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="text-slate-600 border-slate-200 bg-slate-50 text-xs"
+                    >
+                      จบแล้ว
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}

@@ -124,21 +124,23 @@ export default function EditClientModal({
     }
   }, [client]);
 
+  /* ฟังก์ชัน: handleGoalChange — จัดการเป้าหมาย (preset หรือ custom) */
   const handleGoalChange = (value: string) => {
     if (value === "other") {
-      setIsCustomGoal(true);
-      handleChange("goal", ""); // Clear/Prepare for typing
+      setIsCustomGoal(true); // เปิดให้พิมพ์เอง
+      handleChange("goal", ""); // ล้างค่าเดิม
     } else {
       setIsCustomGoal(false);
-      handleChange("goal", value);
+      handleChange("goal", value); // ใช้ค่า preset
     }
   };
 
+  /* ฟังก์ชัน: handleChange — อัปเดต formData ตาม field name */
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Helper to handle date string from input (YYYY-MM-DD) to RFC3339 Local
+  /* ฟังก์ชัน: formatTargetDate — แปลงวันที่ YYYY-MM-DD จาก input → RFC3339 string (เทียงคืน) */
   const formatTargetDate = (dateStr: string) => {
     if (!dateStr) return null;
     const [y, m, d] = dateStr.split("-").map(Number);
@@ -172,10 +174,11 @@ export default function EditClientModal({
     );
   };
 
+  /* ฟังก์ชัน: submitData — ส่งข้อมูลแก้ไขไป API (PUT) */
   const submitData = async () => {
     try {
       setLoading(true);
-
+      // สร้าง payload ตามโครงสร้างที่ backend คาดหวัง
       const payload = {
         name: formData.name,
         email: formData.email,
@@ -188,18 +191,17 @@ export default function EditClientModal({
           : null,
         target_date: formatTargetDate(formData.targetDate),
         gender: formData.gender || "Not Specified",
-        injuries: formData.notes, // UI "Notes" maps to "Injuries" in DB
-        notes: (client as any).notes || "", // Preserve original notes (hidden in this form)
-        medical_conditions: client.medicalConditions || "", // Preserve original
+        injuries: formData.notes, // UI "หมายเหตุ" → เก็บใน injuries
+        notes: (client as any).notes || "", // เก็บ notes เดิมไว้
+        medical_conditions: client.medicalConditions || "",
         avatar_url: client.avatar,
         status: formData.status,
         join_date: client.joinDate,
       };
 
-      await api.put(`/clients/${client.id}`, payload);
-
+      await api.put(`/clients/${client.id}`, payload); // PUT อัปเดต
       toast.success("แก้ไขข้อมูลเรียบร้อยแล้ว");
-      onSuccess();
+      onSuccess(); // callback ปิด modal + reload
     } catch (err: any) {
       console.error("Error updating client:", err);
       toast.error(
@@ -211,39 +213,37 @@ export default function EditClientModal({
     }
   };
 
+  /* ฟังก์ชัน: handleSubmit — ตรวจสอบฟอร์ม + เช็คชื่อซ้ำ ก่อนส่ง */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    // Validation: ต้องมีชื่อ + email
     if (!formData.name || !formData.email) {
       toast.error("กรุณากรอกข้อมูลที่จำเป็น (ชื่อ, อีเมล)");
       return;
     }
-
-    // Check for duplicates (exclude self)
+    // เช็คชื่อซ้ำ (ยกเว้นตัวเอง)
     const isDuplicate = existingClients.some(
       (c) =>
         c.name.toLowerCase() === formData.name.toLowerCase() &&
         c.id !== client.id.toString(),
     );
-
     if (isDuplicate) {
-      setShowDuplicateAlert(true);
+      setShowDuplicateAlert(true); // แสดง alert ชื่อซ้ำ
       return;
     }
-
-    await submitData();
+    await submitData(); // ส่งข้อมูล
   };
 
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="name">ชื่อ-นามสกุล *</Label>
+          <Label htmlFor="name">ชื่อ *</Label>
           <Input
             id="name"
             value={formData.name}
             onChange={(e) => handleChange("name", e.target.value)}
-            placeholder="กรอกชื่อ-นามสกุล"
+            placeholder="กรอกชื่อลูกเทรน"
             required
           />
         </div>

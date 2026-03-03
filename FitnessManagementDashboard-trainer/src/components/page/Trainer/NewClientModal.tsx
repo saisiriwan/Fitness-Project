@@ -154,12 +154,12 @@ export default function NewClientModal({
     <>
       <form onSubmit={handleSubmit} className="new-client-form-container">
         <div className="new-client-form-group">
-          <Label htmlFor="name">ชื่อ-นามสกุล *</Label>
+          <Label htmlFor="name">ชื่อลูกเทรน *</Label>
           <Input
             id="name"
             value={formData.name}
             onChange={(e) => handleChange("name", e.target.value)}
-            placeholder="กรอกชื่อ-นามสกุล"
+            placeholder="กรอกชื่อลูกเทรน"
             required
           />
         </div>

@@ -106,7 +106,7 @@ func (r *trainingRepository) GetSchedulesByUserID(userID int, role string, clien
 	argCount := 2 // userID is $1
 
 	if role == "trainer" {
-		query = `SELECT id, title, trainer_id, client_id, start_time, end_time, status, rating, feedback, program_id, program_day_id FROM schedules WHERE trainer_id = $1`
+		query = `SELECT id, title, trainer_id, client_id, start_time, end_time, status, rating, feedback, program_id, program_day_id, session_type, location FROM schedules WHERE trainer_id = $1`
 
 		// [NEW] Filter by Client (Optional)
 		if clientID != nil {
@@ -117,7 +117,7 @@ func (r *trainingRepository) GetSchedulesByUserID(userID int, role string, clien
 	} else {
 		// Fix: Join with clients table to match user_id
 		query = `
-			SELECT s.id, s.title, s.trainer_id, s.client_id, s.start_time, s.end_time, s.status, s.rating, s.feedback, s.program_id, s.program_day_id
+			SELECT s.id, s.title, s.trainer_id, s.client_id, s.start_time, s.end_time, s.status, s.rating, s.feedback, s.program_id, s.program_day_id, s.session_type, s.location
 			FROM schedules s
 			JOIN clients c ON s.client_id = c.id
 			WHERE c.user_id = $1
@@ -147,18 +147,24 @@ func (r *trainingRepository) GetSchedulesByUserID(userID int, role string, clien
 	var schedules []models.Schedule
 	for rows.Next() {
 		var s models.Schedule
-		var title, status sql.NullString
+		var title, status, sessionType, location sql.NullString
 		var clientID, trainerID sql.NullInt64
 		var startTime, endTime sql.NullTime
 		var rating sql.NullInt64
 		var feedback sql.NullString
 
-		if err := rows.Scan(&s.ID, &title, &trainerID, &clientID, &startTime, &endTime, &status, &rating, &feedback, &s.ProgramID, &s.ProgramDayID); err != nil {
+		if err := rows.Scan(&s.ID, &title, &trainerID, &clientID, &startTime, &endTime, &status, &rating, &feedback, &s.ProgramID, &s.ProgramDayID, &sessionType, &location); err != nil {
 			return nil, err
 		}
 
 		if title.Valid {
 			s.Title = title.String
+		}
+		if sessionType.Valid {
+			s.Type = sessionType.String
+		}
+		if location.Valid {
+			s.Location = location.String
 		}
 		if clientID.Valid {
 			s.ClientID = int(clientID.Int64)
@@ -320,13 +326,13 @@ func (r *trainingRepository) CreateAssignment(assignment *models.Assignment) err
 
 // Get Schedule by ID
 func (r *trainingRepository) GetScheduleByID(id int) (*models.Schedule, error) {
-	query := `SELECT id, title, trainer_id, client_id, start_time, end_time, status, rating, feedback, program_id, program_day_id FROM schedules WHERE id = $1`
+	query := `SELECT id, title, trainer_id, client_id, start_time, end_time, status, rating, feedback, program_id, program_day_id, session_type, location FROM schedules WHERE id = $1`
 	var s models.Schedule
-	var title, status, feedback sql.NullString
+	var title, status, feedback, sessionType, location sql.NullString
 	var rating sql.NullInt64
 
 	err := r.db.QueryRow(query, id).Scan(
-		&s.ID, &title, &s.TrainerID, &s.ClientID, &s.StartTime, &s.EndTime, &status, &rating, &feedback, &s.ProgramID, &s.ProgramDayID,
+		&s.ID, &title, &s.TrainerID, &s.ClientID, &s.StartTime, &s.EndTime, &status, &rating, &feedback, &s.ProgramID, &s.ProgramDayID, &sessionType, &location,
 	)
 	if err != nil {
 		return nil, err
@@ -334,6 +340,12 @@ func (r *trainingRepository) GetScheduleByID(id int) (*models.Schedule, error) {
 
 	if title.Valid {
 		s.Title = title.String
+	}
+	if sessionType.Valid {
+		s.Type = sessionType.String
+	}
+	if location.Valid {
+		s.Location = location.String
 	}
 	if status.Valid {
 		s.Status = status.String

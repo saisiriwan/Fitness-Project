@@ -77,7 +77,7 @@ func (r *sessionRepository) GetSchedulesByClientID(clientID int) ([]models.Sched
 }
 
 func (r *sessionRepository) GetSchedulesByClientIDFiltered(clientID int, startDate, endDate, status string) ([]models.Schedule, error) {
-	query := `SELECT s.id, s.title, s.trainer_id, u.name as trainer_name, u.username as trainer_username, t.phone_number, s.client_id, s.start_time, s.end_time, s.status, s.notes, s.summary, s.rating, s.feedback, s.session_type, s.location, s.created_at 
+	query := `SELECT s.id, s.title, s.trainer_id, u.name as trainer_name, u.username as trainer_username, t.phone_number, s.client_id, s.start_time, s.end_time, s.status, s.notes, s.summary, s.rating, s.feedback, s.session_type, s.location, s.program_id, s.program_day_id, s.created_at 
               FROM schedules s
               LEFT JOIN users u ON s.trainer_id = u.id
               LEFT JOIN trainers t ON u.id = t.user_id
@@ -114,9 +114,9 @@ func (r *sessionRepository) GetSchedulesByClientIDFiltered(clientID int, startDa
 	for rows.Next() {
 		var s models.Schedule
 		var tName, tUsername, tPhone, notes, summary, feedback, sessionType, location sql.NullString
-		var rating sql.NullInt64
+		var rating, progID, progDayID sql.NullInt64
 
-		if err := rows.Scan(&s.ID, &s.Title, &s.TrainerID, &tName, &tUsername, &tPhone, &s.ClientID, &s.StartTime, &s.EndTime, &s.Status, &notes, &summary, &rating, &feedback, &sessionType, &location, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Title, &s.TrainerID, &tName, &tUsername, &tPhone, &s.ClientID, &s.StartTime, &s.EndTime, &s.Status, &notes, &summary, &rating, &feedback, &sessionType, &location, &progID, &progDayID, &s.CreatedAt); err != nil {
 			return nil, err
 		}
 		if tName.Valid {
@@ -148,6 +148,14 @@ func (r *sessionRepository) GetSchedulesByClientIDFiltered(clientID int, startDa
 		}
 		if location.Valid {
 			s.Location = location.String
+		}
+		if progID.Valid {
+			id := int(progID.Int64)
+			s.ProgramID = &id
+		}
+		if progDayID.Valid {
+			id := int(progDayID.Int64)
+			s.ProgramDayID = &id
 		}
 		schedules = append(schedules, s)
 	}
@@ -665,7 +673,7 @@ func (r *sessionRepository) CompleteSession(id int, data *models.Schedule, logs 
 	}
 
 	// 2. Update Schedule Info
-	_, err = tx.Exec(`UPDATE schedules SET notes=$1, status=$2, summary=$3, rating=$4, feedback=$5, end_time=NOW(), updated_at=NOW() WHERE id=$6`,
+	_, err = tx.Exec(`UPDATE schedules SET notes=$1, status=$2, summary=$3, rating=$4, feedback=$5, updated_at=NOW() WHERE id=$6`,
 		data.Notes, "completed", data.Summary, data.Rating, data.Feedback, id)
 	if err != nil {
 		return err
@@ -1232,15 +1240,17 @@ func (r *sessionRepository) GetSessionEnriched(id int) (*models.SessionDetailRes
 					v := prpe.Float64
 					s.TargetRPE = &v
 				}
-				if pDur.Valid && pDur.Int64 > 0 {
-					v := int(pDur.Int64)
-					s.TargetDuration = &v
-				}
+
 				if pDist.Valid && pDist.Float64 > 0 {
 					v := pDist.Float64
 					s.TargetDistance = &v
 				}
-				if pRest.Valid && pRest.Int64 > 0 {
+				if pDur.Valid {
+					v := int(pDur.Int64)
+					s.TargetDuration = &v
+				}
+
+				if pRest.Valid {
 					v := int(pRest.Int64)
 					s.RestDuration = &v
 				}

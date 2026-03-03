@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import {
   CalendarDays,
   Users,
@@ -9,6 +10,10 @@ import {
   CheckCircle2,
   Activity,
   Calendar,
+  User,
+  StickyNote,
+  MapPin,
+  AlertCircle,
 } from "lucide-react";
 import {
   BarChart,
@@ -55,8 +60,11 @@ interface Session {
   id: string;
   clientId: string;
   date: string;
+  endTime?: string;
   status: string;
   summary?: boolean; // Mock field for now if not in API
+  type?: string; // Added for appointment tracking
+  notes?: string;
 }
 
 export default function Dashboard() {
@@ -65,9 +73,12 @@ export default function Dashboard() {
   const [clients, setClients] = useState<Client[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedAppointment, setSelectedAppointment] =
+    useState<Session | null>(null);
 
   // --- Stats State ---
   const [stats, setStats] = useState<any>(null);
+  const [unassignedClients, setUnassignedClients] = useState(0);
 
   useEffect(() => {
     fetchData();
@@ -88,11 +99,15 @@ export default function Dashboard() {
       const startDateStr = pastDate.toISOString().split("T")[0];
       const endDateStr = futureDate.toISOString().split("T")[0];
 
-      const [clientsRes, sessionsRes, statsRes] = await Promise.all([
-        api.get("/clients"),
-        api.get(`/schedules?start_date=${startDateStr}&end_date=${endDateStr}`), // Optimized Fetch
-        api.get("/dashboard/stats"),
-      ]);
+      const [clientsRes, sessionsRes, statsRes, programsRes] =
+        await Promise.all([
+          api.get("/clients"),
+          api.get(
+            `/schedules?start_date=${startDateStr}&end_date=${endDateStr}`,
+          ), // Optimized Fetch
+          api.get("/dashboard/stats"),
+          api.get("/programs"),
+        ]);
 
       // Map Clients
       const mappedClients = (clientsRes.data || []).map((c: any) => ({
@@ -100,7 +115,7 @@ export default function Dashboard() {
         name: c.name,
         avatar: c.avatar_url,
         goal: c.goal || "General Fitness",
-        status: "active",
+        status: c.status || "active",
       }));
       setClients(mappedClients);
 
@@ -109,13 +124,28 @@ export default function Dashboard() {
         id: s.id.toString(),
         clientId: s.client_id.toString(),
         date: s.start_time,
+        endTime: s.end_time,
         status: s.status,
         summary: s.summary || false,
+        type: s.type || "workout",
+        notes: s.location || s.summary || s.feedback || "",
       }));
       setSessions(mappedSessions);
 
       // Set Stats
       setStats(statsRes.data);
+
+      // คำนวณลูกเทรนที่ยังไม่ได้มอบหมายโปรแกรม
+      const allPrograms = programsRes.data || [];
+      const clientIdsWithProgram = new Set(
+        allPrograms
+          .filter((p: any) => p.client_id)
+          .map((p: any) => p.client_id),
+      );
+      const unassigned = mappedClients.filter(
+        (c: any) => !clientIdsWithProgram.has(Number(c.id)),
+      );
+      setUnassignedClients(unassigned.length);
     } catch (error) {
       console.error("Failed to fetch dashboard data", error);
     } finally {
@@ -125,9 +155,10 @@ export default function Dashboard() {
 
   const getClientById = (id: string) => clients.find((c) => c.id === id);
 
-  // Get today's sessions (Fixed Timezone Logic)
+  // Get today's sessions (Fixed Timezone Logic) — exclude general appointments
   const todaySessions = sessions.filter((session) => {
     if (session.status !== "scheduled") return false;
+    if (session.type === "appointment") return false;
 
     const sessionDate = new Date(session.date);
     const now = new Date();
@@ -155,12 +186,38 @@ export default function Dashboard() {
   });
 
   // --- Stats Display Helpers ---
-  // Fallback to 0 if stats not loaded yet
-  const totalClients = stats?.total_clients || clients.length || 0;
-  const completedSessionsCount = stats?.completed_sessions || 0;
-  const thisMonthSessionsCount = stats?.monthly_sessions || 0;
-  const todaySessionsCount =
-    stats?.upcoming_sessions || todaySessions.length || 0; // Use upcoming from stat or local list backup
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+
+  // Filter out cancelled and count for the current month
+  const currentMonthSessions = sessions.filter((s) => {
+    if (s.status === "cancelled") return false;
+    const sessionDate = new Date(s.date);
+    return (
+      sessionDate.getMonth() === currentMonth &&
+      sessionDate.getFullYear() === currentYear
+    );
+  });
+
+  const calculatedCompletedThisMonth = currentMonthSessions.filter(
+    (s) => s.status === "completed" && s.type !== "appointment",
+  ).length;
+
+  const currentMonthWorkouts = currentMonthSessions.filter(
+    (s) => s.type !== "appointment",
+  );
+
+  // Uses frontend calculation for precision to avoid old backend query states
+  const totalClients = stats?.total_clients ?? clients.length ?? 0;
+  const activeClients = clients.filter((c) => c.status === "active").length;
+  const thisMonthSessionsCount =
+    calculatedCompletedThisMonth ?? stats?.monthly_sessions ?? 0;
+  const totalMonthlySessionsCount =
+    currentMonthWorkouts.length ?? stats?.total_monthly_sessions ?? 0;
+
+  const remainingSessionsCount = sessions.filter(
+    (s) => s.status !== "completed" && s.status !== "cancelled",
+  ).length;
 
   // Chart Data from Backend
   const last7DaysData = (stats?.session_history || []).map((d: any) => ({
@@ -179,8 +236,12 @@ export default function Dashboard() {
     value: g.count,
   }));
 
-  const handleStartSession = (sessionId: string) => {
-    navigate(`/trainer/sessions/${sessionId}/log`); // Updated path to match known routes
+  const handleStartSession = (session: Session) => {
+    if (session.type === "appointment") {
+      setSelectedAppointment(session);
+      return;
+    }
+    navigate(`/trainer/sessions/${session.id}/log`); // Updated path to match known routes
   };
 
   const handleNewClient = (clientId: string) => {
@@ -239,12 +300,6 @@ export default function Dashboard() {
     <div className="space-y-4 p-4 lg:p-6 pb-20">
       {/* 1. 📊 INFO: สถิติภาพรวม */}
       <Card className="shadow-md border-none">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">สรุปภาพรวม</CardTitle>
-          <CardDescription className="text-xs">
-            สถิติและข้อมูลสำคัญ
-          </CardDescription>
-        </CardHeader>
         <CardContent className="pt-0">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950 dark:to-blue-900">
@@ -253,13 +308,13 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-xs text-blue-600 dark:text-blue-400">
-                  ลูกเทรน
+                  ลูกเทรนทั้งหมด
                 </p>
                 <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                  {totalClients}
+                  {totalClients} คน
                 </p>
-                <p className="text-xs text-blue-600/60 dark:text-blue-400/60">
-                  {totalClients} Active
+                <p className="text-xs text-blue-500 dark:text-blue-400 mt-0.5">
+                  ใช้งานอยู่ {activeClients} คน
                 </p>
               </div>
             </div>
@@ -270,50 +325,40 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-xs text-orange-600 dark:text-orange-400">
-                  เดือนนี้
+                  สถิติการฝึก (เดือนนี้)
                 </p>
-                <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                  {thisMonthSessionsCount}
-                </p>
-                <p className="text-xs text-orange-600/60 dark:text-orange-400/60">
-                  การฝึก
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950 dark:to-green-900">
-              <div className="h-12 w-12 rounded-xl bg-green-500 flex items-center justify-center shadow-md flex-shrink-0">
-                <CheckCircle2 className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <p className="text-xs text-green-600 dark:text-green-400">
-                  ทั้งหมด
-                </p>
-                <p className="text-2xl font-bold text-green-700 dark:text-green-300">
-                  {completedSessionsCount}
-                </p>
-                <p className="text-xs text-green-600/60 dark:text-green-400/60">
-                  การฝึก
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
+                    {thisMonthSessionsCount}
+                  </p>
+                  <p className="text-sm font-medium text-orange-600/80 dark:text-orange-400/80">
+                    / {totalMonthlySessionsCount} เซสชัน
+                  </p>
+                </div>
+                <p className="text-[10px] font-medium text-orange-500 dark:text-orange-400 mt-0.5">
+                  นัดหมายที่รอการฝึกทั้งหมด : {remainingSessionsCount} เซสชัน
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950 dark:to-purple-900">
-              <div className="h-12 w-12 rounded-xl bg-purple-500 flex items-center justify-center shadow-md flex-shrink-0">
-                <Calendar className="h-6 w-6 text-white" />
+            {unassignedClients > 0 && (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950 dark:to-red-900">
+                <div className="h-12 w-12 rounded-xl bg-red-500 flex items-center justify-center shadow-md flex-shrink-0">
+                  <AlertCircle className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    ยังไม่มีโปรแกรม
+                  </p>
+                  <p className="text-2xl font-bold text-red-700 dark:text-red-300">
+                    {unassignedClients} คน
+                  </p>
+                  <p className="text-xs text-red-500 dark:text-red-400 mt-0.5">
+                    รอมอบหมายโปรแกรม
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-purple-600 dark:text-purple-400">
-                  วันนี้
-                </p>
-                <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-                  {todaySessionsCount || todaySessions.length}
-                </p>
-                <p className="text-xs text-purple-600/60 dark:text-purple-400/60">
-                  นัดหมาย
-                </p>
-              </div>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -344,7 +389,7 @@ export default function Dashboard() {
               variant="secondary"
               className="text-lg px-3 py-1 bg-orange-500 text-white"
             >
-              {todaySessions.length} การฝึก
+              {todaySessions.length} รายการ
             </Badge>
           </div>
         </CardHeader>
@@ -405,21 +450,34 @@ export default function Dashboard() {
                           <Clock className="h-3 w-3" />
                           {sessionTime} น.
                         </div>
-                        <Badge
-                          variant="outline"
-                          className="text-xs py-0 bg-primary/10 border-primary/30"
-                        >
-                          {client.goal}
-                        </Badge>
+                        {session.type === "appointment" ? (
+                          <Badge
+                            variant="outline"
+                            className="text-xs py-0 border-blue-200 text-blue-700 bg-blue-50"
+                          >
+                            ทั่วไป
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-xs py-0 bg-primary/10 border-primary/30"
+                          >
+                            {client.goal}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>
                   <Button
                     size="sm"
-                    onClick={() => handleStartSession(session.id)}
+                    onClick={() => handleStartSession(session)}
                     className="flex items-center gap-1 shadow-md bg-accent hover:bg-accent/90 text-accent-foreground"
                   >
-                    <BookOpen className="h-4 w-4" />
+                    {session.type === "appointment" ? (
+                      <CalendarDays className="h-4 w-4" />
+                    ) : (
+                      <BookOpen className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
               );
@@ -606,7 +664,7 @@ export default function Dashboard() {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {goalData.map((entry: any, index: number) => (
+                    {goalData.map((_: any, index: number) => (
                       <Cell
                         key={`cell-${index}`}
                         fill={COLORS[index % COLORS.length]}
@@ -663,6 +721,82 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* View Appointment Details Dialog */}
+      <Dialog
+        open={!!selectedAppointment}
+        onOpenChange={(open) => !open && setSelectedAppointment(null)}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-blue-500" />
+              รายละเอียดนัดหมายทั่วไป
+            </DialogTitle>
+            <DialogDescription>
+              {selectedAppointment
+                ? new Date(selectedAppointment.date).toLocaleDateString(
+                    "th-TH",
+                    {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    },
+                  )
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAppointment && (
+            <div className="space-y-4 py-4">
+              <div className="flex items-start gap-3">
+                <div className="bg-blue-100 p-2 rounded-lg text-blue-700 mt-1">
+                  <Clock className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    เวลา
+                  </p>
+                  <p className="text-base font-semibold">
+                    {new Date(selectedAppointment.date).toLocaleTimeString(
+                      "th-TH",
+                      {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      },
+                    )}
+                    {selectedAppointment.endTime &&
+                      ` - ${new Date(
+                        selectedAppointment.endTime,
+                      ).toLocaleTimeString("th-TH", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      })}`}{" "}
+                    น.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="bg-gray-100 p-2 rounded-lg text-gray-700 mt-1">
+                  <MapPin className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    สถานที่ / รายละเอียด
+                  </p>
+                  <p className="text-base font-medium">
+                    {(selectedAppointment as any).notes || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

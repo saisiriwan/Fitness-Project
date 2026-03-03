@@ -205,9 +205,9 @@ func (r *programRepository) AddExercise(pe *models.ProgramExercise) error {
 			reps, weight, distance, pace, side,
 			sets, reps_min, reps_max, weight_kg, weight_percentage, is_bodyweight, duration_seconds, rest_seconds, rpe_target, notes, "order", tracking_fields,
 			duration, rest, rpe, tempo, hold_time, 
-			time, speed, cadence, distance_long, distance_short, one_rm, rir, heart_rate, hr_zone, watts, rpm, rounds, video_link
+			"time", speed, cadence, distance_long, distance_short, one_rm, rir, heart_rate, hr_zone, watts, rpm, rounds
 		)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)
         RETURNING id`
 	return r.db.QueryRow(query,
 		pe.ProgramSectionID, pe.ExerciseID,
@@ -215,7 +215,7 @@ func (r *programRepository) AddExercise(pe *models.ProgramExercise) error {
 		pe.Sets, pe.RepsMin, pe.RepsMax, pe.WeightKg, pe.WeightPercentage, pe.IsBodyweight, pe.DurationSeconds, pe.RestSeconds, pe.RPETarget, pe.Notes, pe.Order,
 		pq.Array(pe.TrackingFields),
 		pe.Duration, pe.Rest, pe.Rpe, pe.Tempo, pe.HoldTime,
-		pe.Time, pe.Speed, pe.Cadence, pe.DistanceLong, pe.DistanceShort, pe.OneRM, pe.RIR, pe.HeartRate, pe.HRZone, pe.Watts, pe.RPM, pe.Rounds, pe.VideoLink,
+		pe.Time, pe.Speed, pe.Cadence, pe.DistanceLong, pe.DistanceShort, pe.OneRM, pe.RIR, pe.HeartRate, pe.HRZone, pe.Watts, pe.RPM, pe.Rounds,
 	).Scan(&pe.ID)
 }
 
@@ -257,8 +257,7 @@ func (r *programRepository) GetExercisesBySectionID(sectionID int) ([]models.Pro
 			pe.hr_zone,
 			pe.watts,
 			pe.rpm,
-			pe.rounds,
-			COALESCE(pe.video_link, '') as video_link
+			pe.rounds
 		FROM program_exercises pe
 		LEFT JOIN exercises e ON pe.exercise_id = e.id
 		WHERE pe.program_section_id = $1 ORDER BY pe."order" ASC`
@@ -282,7 +281,7 @@ func (r *programRepository) GetExercisesBySectionID(sectionID int) ([]models.Pro
 			pq.Array(&pe.TrackingFields),
 			&pe.Duration, &pe.Rest, &pe.Rpe, &pe.Tempo, &pe.HoldTime,
 			&pe.Time, &pe.Speed, &pe.Cadence, &pe.DistanceLong, &pe.DistanceShort,
-			&pe.OneRM, &pe.RIR, &pe.HeartRate, &pe.HRZone, &pe.Watts, &pe.RPM, &pe.Rounds, &pe.VideoLink,
+			&pe.OneRM, &pe.RIR, &pe.HeartRate, &pe.HRZone, &pe.Watts, &pe.RPM, &pe.Rounds,
 		)
 		if err != nil {
 			return nil, err
@@ -537,14 +536,14 @@ func (r *programRepository) AssignProgramToClients(programID int, clientIDs []in
 							reps_min, reps_max, weight_kg, weight_percentage, is_bodyweight, 
 							duration_seconds, rest_seconds, rpe_target, notes, "order", tracking_fields,
 							duration, rest, rpe, tempo, hold_time, 
-							"time", speed, cadence, distance_long, distance_short, one_rm, rir, heart_rate, hr_zone, watts, rpm, rounds, video_link
-						) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37)`,
+							"time", speed, cadence, distance_long, distance_short, one_rm, rir, heart_rate, hr_zone, watts, rpm, rounds
+						) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)`,
 						newSectionID, exercise.ExerciseID, exercise.Sets,
 						exercise.Reps, exercise.Weight, exercise.Distance, exercise.Pace, exercise.Side,
 						exercise.RepsMin, exercise.RepsMax, exercise.WeightKg, exercise.WeightPercentage, exercise.IsBodyweight,
 						exercise.DurationSeconds, exercise.RestSeconds, exercise.RPETarget, exercise.Notes, exercise.Order, pq.Array(exercise.TrackingFields),
 						exercise.Duration, exercise.Rest, exercise.Rpe, exercise.Tempo, exercise.HoldTime,
-						exercise.Time, exercise.Speed, exercise.Cadence, exercise.DistanceLong, exercise.DistanceShort, exercise.OneRM, exercise.RIR, exercise.HeartRate, exercise.HRZone, exercise.Watts, exercise.RPM, exercise.Rounds, exercise.VideoLink,
+						exercise.Time, exercise.Speed, exercise.Cadence, exercise.DistanceLong, exercise.DistanceShort, exercise.OneRM, exercise.RIR, exercise.HeartRate, exercise.HRZone, exercise.Watts, exercise.RPM, exercise.Rounds,
 					)
 					if err != nil {
 						logErrorToDisk("Failed to insert program exercise", err)
@@ -554,7 +553,28 @@ func (r *programRepository) AssignProgramToClients(programID int, clientIDs []in
 			}
 		}
 
-		// 2. Manage Active Program (Cancel previous)
+		// 2. Manage Active Program (Cancel previous and clean up their future schedules)
+		// Find the active programs for this client to clean up their schedules
+		rowsArgs, err := tx.Query(`SELECT program_id FROM client_active_programs WHERE client_id = $1 AND status = 'active'`, clientID)
+		if err == nil {
+			var oldProgramIDs []int
+			for rowsArgs.Next() {
+				var pid int
+				if err := rowsArgs.Scan(&pid); err == nil {
+					oldProgramIDs = append(oldProgramIDs, pid)
+				}
+			}
+			rowsArgs.Close()
+
+			// Delete future/pending schedules for those old programs so they don't overlap
+			for _, pid := range oldProgramIDs {
+				tx.Exec(`DELETE FROM exercise_history_summary WHERE schedule_id IN (SELECT id FROM schedules WHERE program_id = $1 AND status IN ('scheduled', 'pending'))`, pid)
+				tx.Exec(`DELETE FROM session_log_sets WHERE session_log_id IN (SELECT id FROM session_logs WHERE schedule_id IN (SELECT id FROM schedules WHERE program_id = $1 AND status IN ('scheduled', 'pending')))`, pid)
+				tx.Exec(`DELETE FROM session_logs WHERE schedule_id IN (SELECT id FROM schedules WHERE program_id = $1 AND status IN ('scheduled', 'pending'))`, pid)
+				tx.Exec(`DELETE FROM schedules WHERE program_id = $1 AND status IN ('scheduled', 'pending')`, pid)
+			}
+		}
+
 		_, err = tx.Exec(`UPDATE client_active_programs SET status = 'cancelled' WHERE client_id = $1 AND status = 'active'`, clientID)
 		if err != nil {
 			log.Printf("[WARN] Failed to cancel existing active programs: %v", err)
@@ -579,6 +599,21 @@ func (r *programRepository) AssignProgramToClients(programID int, clientIDs []in
 			scheduleDate := start.AddDate(0, 0, offsetDays)
 			newDayID := dayMapping[day.ID]
 
+			// Pre-check if this day actually has exercises
+			sections, _ := r.GetSectionsByDayID(day.ID)
+			hasExercises := false
+			for _, section := range sections {
+				exercises, _ := r.GetExercisesBySectionID(section.ID)
+				if len(exercises) > 0 {
+					hasExercises = true
+					break
+				}
+			}
+
+			if !hasExercises {
+				continue // Skip creating a schedule for rest days or empty days
+			}
+
 			// Calculate specific start/end times
 			sTime := parseTime(scheduleDate, startTime, 10) // Default 10:00
 			eTime := parseTime(scheduleDate, endTime, 11)   // Default 11:00
@@ -598,7 +633,7 @@ func (r *programRepository) AssignProgramToClients(programID int, clientIDs []in
 				return err
 			}
 			// 4. Create Session Logs
-			sections, _ := r.GetSectionsByDayID(day.ID)
+			sections, _ = r.GetSectionsByDayID(day.ID)
 			for _, section := range sections {
 				exercises, _ := r.GetExercisesBySectionID(section.ID)
 				for _, exercise := range exercises {
@@ -659,12 +694,6 @@ func (r *programRepository) AssignProgramToClients(programID int, clientIDs []in
 							}
 						}
 
-						// Pace: JSONB array (strings)
-						pPace := ""
-						if i < len(exercise.Pace) {
-							pPace = exercise.Pace[i]
-						}
-
 						// Rest: JSONB array (floats, seconds)
 						pRest := 0
 						if i < len(exercise.Rest) && exercise.Rest[i] > 0 {
@@ -711,10 +740,6 @@ func (r *programRepository) AssignProgramToClients(programID int, clientIDs []in
 						addString("time", exercise.Time)
 						addString("hold_time", exercise.HoldTime)
 						addString("tempo", exercise.Tempo)
-						addString("side", exercise.Side)
-
-						// Pace is now a dedicated column, but we can keep it in metadata if needed for legacy
-						// addString("pace", exercise.Pace)
 
 						metadataJSON, _ := json.Marshal(metadata)
 
@@ -722,12 +747,12 @@ func (r *programRepository) AssignProgramToClients(programID int, clientIDs []in
 							INSERT INTO session_log_sets (
 								session_log_id, set_number,
 								planned_reps, planned_weight_kg, planned_rpe,
-								planned_duration_seconds, planned_distance, planned_pace,
+								planned_duration_seconds, planned_distance,
 								rest_duration_seconds,
 								planned_metadata,
 								completed
 							) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)`,
-							logID, i+1, pReps, pWeight, pRpe, pDuration, pDistance, pPace, pRest, metadataJSON,
+							logID, i+1, pReps, pWeight, pRpe, pDuration, pDistance, pRest, metadataJSON,
 						)
 						if err != nil {
 							logErrorToDisk("Failed to insert session log set", err)
@@ -748,16 +773,16 @@ func (r *programRepository) AssignProgramToClients(programID int, clientIDs []in
 func (r *programRepository) GetCurrentProgramByClientID(clientID int) (*models.CurrentProgramResponse, error) {
 	// 1. Get Active Program Info
 	queryProgram := `
-        SELECT p.name, cap.current_week, cap.total_weeks, p.id
+        SELECT p.name, cap.current_week, cap.total_weeks, p.id, p.days_per_week, cap.start_date, cap.end_date
         FROM client_active_programs cap
         JOIN programs p ON cap.program_id = p.id
         WHERE cap.client_id = $1 AND cap.status = 'active'
         LIMIT 1
     `
 	var resp models.CurrentProgramResponse
-	var programID int
 
-	err := r.db.QueryRow(queryProgram, clientID).Scan(&resp.Name, &resp.CurrentWeek, &resp.DurationWeeks, &programID)
+	err := r.db.QueryRow(queryProgram, clientID).Scan(&resp.Name, &resp.CurrentWeek, &resp.DurationWeeks, &resp.ID, &resp.DaysPerWeek, &resp.StartDate, &resp.EndDate)
+	resp.Exercises = []models.ProgramExerciseProgress{}
 	if err == sql.ErrNoRows {
 		return nil, nil // No active program
 	} else if err != nil {
@@ -765,9 +790,11 @@ func (r *programRepository) GetCurrentProgramByClientID(clientID int) (*models.C
 	}
 
 	// 2. Get Exercises for Current Week
-	// Join: Program -> Days (week=current) -> Sections -> Exercises
 	queryExercises := `
-        SELECT e.name
+        SELECT 
+            e.name, COALESCE(e.tracking_type, ''), COALESCE(e.category, ''), COALESCE(pe.is_bodyweight, false), 
+            COALESCE(pe.sets, 0), COALESCE(pe.reps_min, 0), COALESCE(pe.weight_kg, 0), 
+            COALESCE(pe.duration_seconds, 0), 0.0 as target_distance
         FROM program_days pd
         JOIN program_sections ps ON ps.program_day_id = pd.id
         JOIN program_exercises pe ON pe.program_section_id = ps.id
@@ -775,22 +802,33 @@ func (r *programRepository) GetCurrentProgramByClientID(clientID int) (*models.C
         WHERE pd.program_id = $1 AND pd.week_number = $2
         ORDER BY pd.day_number, ps."order", pe."order"
     `
-	rows, err := r.db.Query(queryExercises, programID, resp.CurrentWeek)
+	rows, err := r.db.Query(queryExercises, resp.ID, resp.CurrentWeek)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var exName string
-		if err := rows.Scan(&exName); err != nil {
+		var exName, exType, exCat string
+		var isBW bool
+		var sets, reps int
+		var weight, duration, distance float64
+		if err := rows.Scan(&exName, &exType, &exCat, &isBW, &sets, &reps, &weight, &duration, &distance); err != nil {
 			continue
 		}
 
 		resp.Exercises = append(resp.Exercises, models.ProgramExerciseProgress{
-			Name: exName,
-			// For now, returning placeholders for performance comparison
-			// Real implementation would require querying exercise history
+			Name:         exName,
+			Type:         exType,
+			Category:     exCat,
+			IsBodyweight: isBW,
+			ProgramPrescription: &models.PerformanceData{
+				Sets:            sets,
+				Reps:            reps,
+				WeightKg:        weight,
+				DurationMinutes: int(duration / 60),
+				DistanceKm:      distance,
+			},
 			CurrentPerformance:  &models.PerformanceData{WeightKg: 0},
 			PreviousPerformance: &models.PerformanceData{WeightKg: 0},
 			ProgressPercentage:  0,
@@ -822,7 +860,9 @@ func (r *programRepository) GetProgramStatistics(clientID int, period string) (*
 	queryStats := `
         SELECT COUNT(id), COALESCE(SUM(total_volume_kg), 0)
         FROM schedules
-        WHERE client_id = $1 AND status = 'completed'
+        WHERE client_id = $1 AND status = 'completed' AND program_id = (
+            SELECT program_id FROM client_active_programs WHERE client_id = $1 AND status = 'active' LIMIT 1
+        )
     `
 	// If period filtering is needed, add WHERE clauses here based on 'period'
 
@@ -956,7 +996,7 @@ func (r *programRepository) CloneProgram(programID int, trainerID int) error {
 					duration_seconds, rest_seconds, rpe_target, notes, "order",
 					duration, rest, rpe, tempo, hold_time,
 					time, speed, cadence, distance_long, distance_short,
-					one_rm, rir, heart_rate, hr_zone, watts, rpm, rounds, video_link, tracking_fields
+					one_rm, rir, heart_rate, hr_zone, watts, rpm, rounds, tracking_fields
 				FROM program_exercises WHERE program_section_id = $1 ORDER BY "order"`, s.ID)
 			if err != nil {
 				return err
@@ -968,7 +1008,7 @@ func (r *programRepository) CloneProgram(programID int, trainerID int) error {
 				WeiKg, WeiPct              float64
 				IsBW                       bool
 				DurSec, RestSec, RPETarget float64 // Changed to float64
-				Notes, VideoLink           string
+				Notes                      string
 				// JSONB Fields as []byte (Raw JSON)
 				Reps, Weight, Distance, Pace, Side, Duration, Rest, RPE, Tempo, HoldTime              []byte
 				Time, Speed, Cadence, DistLong, DistShort, OneRM, RIR, HR, HRZone, Watts, RPM, Rounds []byte
@@ -977,7 +1017,7 @@ func (r *programRepository) CloneProgram(programID int, trainerID int) error {
 				// Null handling
 				RepsMinNull, RepsMaxNull, RestNull, RPENull                   sql.NullInt32
 				WeiKgNull, WeiPctNull, DurSecNull, RestSecNull, RPETargetNull sql.NullFloat64
-				NotesNull, VideoLinkNull                                      sql.NullString
+				NotesNull                                                     sql.NullString
 				TrackingNull                                                  interface{} // Just in case
 			}
 			var cloneExercises []exData
@@ -990,7 +1030,7 @@ func (r *programRepository) CloneProgram(programID int, trainerID int) error {
 					&e.DurSecNull, &e.RestSecNull, &e.RPETargetNull, &e.NotesNull, &e.Order,
 					&e.Duration, &e.Rest, &e.RPE, &e.Tempo, &e.HoldTime,
 					&e.Time, &e.Speed, &e.Cadence, &e.DistLong, &e.DistShort,
-					&e.OneRM, &e.RIR, &e.HR, &e.HRZone, &e.Watts, &e.RPM, &e.Rounds, &e.VideoLinkNull, &e.TrackingFields,
+					&e.OneRM, &e.RIR, &e.HR, &e.HRZone, &e.Watts, &e.RPM, &e.Rounds, &e.TrackingFields,
 				); err != nil {
 					exRows.Close()
 					return err
@@ -1021,9 +1061,6 @@ func (r *programRepository) CloneProgram(programID int, trainerID int) error {
 				if e.NotesNull.Valid {
 					e.Notes = e.NotesNull.String
 				}
-				if e.VideoLinkNull.Valid {
-					e.VideoLink = e.VideoLinkNull.String
-				}
 
 				cloneExercises = append(cloneExercises, e)
 			}
@@ -1037,15 +1074,15 @@ func (r *programRepository) CloneProgram(programID int, trainerID int) error {
 						duration_seconds, rest_seconds, rpe_target, notes, "order",
 						duration, rest, rpe, tempo, hold_time,
 						time, speed, cadence, distance_long, distance_short,
-						one_rm, rir, heart_rate, hr_zone, watts, rpm, rounds, video_link, tracking_fields
+						one_rm, rir, heart_rate, hr_zone, watts, rpm, rounds, tracking_fields
 					)
-					VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37)`,
+					VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)`,
 					newSecID, e.ExID, e.Sets, e.Reps, e.Weight, e.Distance, e.Pace, e.Side,
 					e.RepsMin, e.RepsMax, e.WeiKg, e.WeiPct, e.IsBW,
 					e.DurSec, e.RestSec, e.RPETarget, e.Notes, e.Order,
 					e.Duration, e.Rest, e.RPE, e.Tempo, e.HoldTime,
 					e.Time, e.Speed, e.Cadence, e.DistLong, e.DistShort,
-					e.OneRM, e.RIR, e.HR, e.HRZone, e.Watts, e.RPM, e.Rounds, e.VideoLink, e.TrackingFields,
+					e.OneRM, e.RIR, e.HR, e.HRZone, e.Watts, e.RPM, e.Rounds, e.TrackingFields,
 				)
 				if err != nil {
 					return err
@@ -1063,15 +1100,15 @@ func (r *programRepository) UpdateProgramExercise(pe *models.ProgramExercise) er
 		SET sets=$1, reps=$2, weight=$3, distance=$4, pace=$5, side=$6,
 		    duration=$7, hold_time=$8, tempo=$9, rest=$10, rpe=$11,
 		    time=$12, speed=$13, cadence=$14, distance_long=$15, distance_short=$16,
-		    one_rm=$17, rir=$18, heart_rate=$19, hr_zone=$20, watts=$21, rpm=$22, rounds=$23, video_link=$24,
-		    duration_seconds=$25, rest_seconds=$26, rpe_target=$27, notes=$28, "order"=$29, tracking_fields=$30
-		WHERE id=$31
+		    one_rm=$17, rir=$18, heart_rate=$19, hr_zone=$20, watts=$21, rpm=$22, rounds=$23,
+		    duration_seconds=$24, rest_seconds=$25, rpe_target=$26, notes=$27, "order"=$28, tracking_fields=$29
+		WHERE id=$30
 	`
 	_, err := r.db.Exec(query,
 		pe.Sets, pe.Reps, pe.Weight, pe.Distance, pe.Pace, pe.Side,
 		pe.Duration, pe.HoldTime, pe.Tempo, pe.Rest, pe.Rpe,
 		pe.Time, pe.Speed, pe.Cadence, pe.DistanceLong, pe.DistanceShort,
-		pe.OneRM, pe.RIR, pe.HeartRate, pe.HRZone, pe.Watts, pe.RPM, pe.Rounds, pe.VideoLink,
+		pe.OneRM, pe.RIR, pe.HeartRate, pe.HRZone, pe.Watts, pe.RPM, pe.Rounds,
 		pe.DurationSeconds, pe.RestSeconds, pe.RPETarget, pe.Notes, pe.Order,
 		pq.Array(pe.TrackingFields),
 		pe.ID,

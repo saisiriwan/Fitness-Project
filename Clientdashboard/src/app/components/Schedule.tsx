@@ -1,15 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  MapPin,
-  User,
-  Calendar,
-  Clock,
-  Bell,
-  LogOut,
-  Settings,
-} from "lucide-react";
-import { format, parseISO } from "date-fns";
-import { th } from "date-fns/locale";
+import { LogOut } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { ProgressView } from "./ProgressView";
 import { SessionCardsView } from "./SessionCardsView";
@@ -101,7 +91,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     ) {
       console.log("WebSocket Update Received:", lastMessage);
       fetchData();
-      toast.info("ข้อมูลมีการอัปเดต");
+      toast.info("ข้อมูลมีการอัปเดต", { id: "ws-update-toast" });
     }
   }, [lastMessage]);
 
@@ -122,18 +112,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
       </div>
     );
   }
-
-  // Format date to Thai format
-  const formatDate = (dateString: string) => {
-    // If dateString is ISO, parse it. If YYYY-MM-DD, parse it.
-    const date = dateString ? new Date(dateString) : new Date();
-    return format(date, "EEEE d MMMM", { locale: th });
-  };
-
-  const formatTime = (isoString?: string) => {
-    if (!isoString) return "-";
-    return format(parseISO(isoString), "HH:mm");
-  };
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -190,138 +168,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
               user={user}
               lastMessage={lastMessage}
             />
-          )}
-
-          {activeTab === "schedule" && (
-            <div className="space-y-4 sm:space-y-6">
-              {/* Header */}
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
-                  ตารางนัดหมายการฝึก
-                </h1>
-                <p className="text-sm sm:text-base text-muted-foreground">
-                  รายการกำหนดการที่กำลังจะมาถึง
-                </p>
-              </div>
-
-              {/* Schedule List */}
-              <div className="space-y-3 sm:space-y-4">
-                {schedules.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground border rounded-lg">
-                    ไม่มีการนัดหมาย
-                  </div>
-                ) : (
-                  schedules.map((schedule) => (
-                    <div
-                      key={schedule.id}
-                      className={`border rounded-lg p-4 sm:p-6 transition-shadow ${
-                        schedule.status === "cancelled"
-                          ? "bg-red-50/50 dark:bg-red-950/10 border-red-200 dark:border-red-800 opacity-60"
-                          : "bg-card border-border hover:shadow-md"
-                      }`}
-                    >
-                      <div className="flex flex-col sm:flex-row items-start gap-4">
-                        {/* Trainer Avatar */}
-                        <div className="flex-shrink-0">
-                          <div
-                            className={`w-12 h-12 rounded-full flex items-center justify-center shadow-md ${
-                              schedule.status === "cancelled"
-                                ? "bg-gray-300"
-                                : schedule.type === "appointment"
-                                  ? "bg-gradient-to-br from-teal-500 to-emerald-600"
-                                  : "bg-gradient-to-br from-[#002140] to-[#003d75]"
-                            }`}
-                          >
-                            {schedule.type === "appointment" ? (
-                              <Calendar className="w-6 h-6 text-white" />
-                            ) : (
-                              <User className="w-6 h-6 text-white" />
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Main Content */}
-                        <div className="flex-1 min-w-0">
-                          {/* Trainer Info */}
-                          <div className="flex items-center gap-3 mb-1">
-                            <h3
-                              className={`flex items-center gap-2 ${
-                                schedule.status === "cancelled"
-                                  ? "line-through text-muted-foreground"
-                                  : "text-foreground"
-                              }`}
-                            >
-                              <span>{schedule.trainer_name || "Trainer"}</span>
-                              {schedule.type === "appointment" && (
-                                <span className="px-2 py-0.5 rounded border border-teal-200 text-teal-700 bg-teal-50 text-[10px]">
-                                  นัดหมายทั่วไป
-                                </span>
-                              )}
-                            </h3>
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs ${
-                                schedule.status === "cancelled"
-                                  ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
-                                  : schedule.status === "completed"
-                                    ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
-                                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400"
-                              }`}
-                            >
-                              {schedule.status === "cancelled"
-                                ? "ยกเลิกนัดหมาย"
-                                : schedule.status === "completed"
-                                  ? "เสร็จสิ้น"
-                                  : "นัดหมาย"}
-                            </span>
-                          </div>
-
-                          {/* Schedule Details */}
-                          <div className="grid grid-cols-2 gap-4 mt-4">
-                            {/* Date & Time */}
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <Calendar className="w-4 h-4" />
-                                <span className="text-sm">
-                                  {schedule.start_time
-                                    ? formatDate(schedule.start_time)
-                                    : schedule.date}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <Clock className="w-4 h-4" />
-                                <span className="text-sm">
-                                  {formatTime(schedule.start_time)} (
-                                  {schedule.duration || 60} นาที)
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Location & Type */}
-                            <div className="space-y-2">
-                              {schedule.location && (
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                  <MapPin className="w-4 h-4" />
-                                  <span className="text-sm">
-                                    {schedule.location}
-                                  </span>
-                                </div>
-                              )}
-                              {schedule.title && (
-                                <div className="flex items-start gap-2">
-                                  <span className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full text-xs inline-block">
-                                    {schedule.title}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
           )}
 
           {activeTab === "exercises" && <ProgressView user={user} />}

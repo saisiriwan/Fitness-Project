@@ -63,7 +63,7 @@ import {
   ProgramStats,
   MetricsResponse,
   MetricItem,
-  getExerciseHistory,
+  Session,
 } from "@/services/clientService";
 
 // ===================================
@@ -284,6 +284,7 @@ export function ProgressView({ user }: ProgressViewProps) {
   const [currentProgram, setCurrentProgram] = useState<TrainingProgram | null>(
     null,
   );
+  const [programDetails, setProgramDetails] = useState<any | null>(null);
   const [exerciseHistory, setExerciseHistory] = useState<
     ExerciseHistoryRecord[]
   >([]);
@@ -295,23 +296,18 @@ export function ProgressView({ user }: ProgressViewProps) {
     new Map(),
   );
   const [error, setError] = useState<string | null>(null);
+  const [programSchedules, setProgramSchedules] = useState<Session[]>([]);
+  const [programProgress, setProgramProgress] = useState({
+    completed: 0,
+    total: 0,
+    percentage: 0,
+    adherence: 0,
+  });
 
   const userGoalKey = useMemo(() => mapGoalKey(user?.goal), [user?.goal]);
 
-  useEffect(() => {
-    async function fetchExerciseHistory() {
-      if (!user) return;
-      try {
-        console.log("[ProgressView] Fetching history for user:", user.id);
-        const data = await getExerciseHistory(user.id);
-        console.log("[ProgressView] Raw history data:", data);
-        setExerciseHistory(data || []); // Ensure array
-      } catch (error) {
-        console.error("Failed to fetch exercise history:", error);
-      }
-    }
-    fetchExerciseHistory();
-  }, [user]);
+  // NOTE: Exercise history is fetched in the main data-loading useEffect below.
+  // A separate duplicate fetch was removed to prevent race conditions.
 
   useEffect(() => {
     const fetchData = async () => {
@@ -319,26 +315,89 @@ export function ProgressView({ user }: ProgressViewProps) {
 
       try {
         setLoadingProgram(true);
-        const [programRes, statsRes, historyRes, metricsRes, exercisesRes] =
-          await Promise.all([
-            clientService
-              .getCurrentProgram(user.id.toString())
-              .catch(() => null),
-            clientService
-              .getProgramStatistics(user.id.toString())
-              .catch(() => null),
-            clientService
-              .getExerciseHistory(user.id.toString())
-              .catch(() => null),
-            clientService
-              .getMetrics(user.id.toString(), { goal: userGoalKey })
-              .catch(() => null),
-            clientService.getExercises().catch(() => []),
-          ]);
+        const [
+          programRes,
+          statsRes,
+          historyRes,
+          metricsRes,
+          exercisesRes,
+          schedulesRes,
+        ] = await Promise.all([
+          clientService.getCurrentProgram(user.id.toString()).catch(() => null),
+          clientService
+            .getProgramStatistics(user.id.toString())
+            .catch(() => null),
+          clientService
+            .getExerciseHistory(user.id.toString())
+            .catch(() => null),
+          clientService
+            .getMetrics(user.id.toString(), { goal: userGoalKey })
+            .catch(() => null),
+          clientService.getExercises().catch(() => []),
+          clientService.getMySchedules().catch(() => []),
+        ]);
 
         setCurrentProgram(programRes);
         setProgramStats(statsRes);
         setExerciseHistory(historyRes?.exercises || []);
+
+        let detailsRes = null;
+        if (programRes?.id) {
+          detailsRes = await clientService
+            .getProgramDetails(programRes.id)
+            .catch(() => null);
+          setProgramDetails(detailsRes);
+        }
+
+        // Calculate program progress from schedules
+        if (programRes && schedulesRes) {
+          // Use == for loose equality to handle string/number comparison if any
+          const progSchedules = schedulesRes.filter(
+            (s: Session) => (s as any).program_id == programRes.id,
+          );
+          setProgramSchedules(progSchedules);
+
+          // Use statsRes if available, otherwise calculate from schedules
+          // Backend TotalWorkouts is the count of COMPLETED sessions
+          const completed =
+            (statsRes as any)?.total_workouts ??
+            progSchedules.filter(
+              (s: Session) => s.status?.toLowerCase() === "completed",
+            ).length;
+
+          let total = 0;
+          const progDetails = detailsRes || (programRes as any);
+
+          if (progDetails?.days && progDetails.days.length > 0) {
+            // If the backend returns detailed days structure, count non-rest days
+            total = progDetails.days.filter((d: any) => !d.is_rest).length;
+            if (total === 0 && progDetails.days.length > 0)
+              total = progDetails.days.length;
+          } else {
+            // Otherwise, calculate total based on duration and days_per_week
+            const weeks = progDetails.duration_weeks || 4;
+            const daysPerWeek = progDetails.days_per_week || 3;
+            total = weeks * daysPerWeek;
+          }
+          // Adherence: completed / past sessions
+          const now = new Date();
+          const pastCount = progSchedules.filter(
+            (s: Session) => new Date(s.start_time) < now,
+          ).length;
+          const adherence =
+            pastCount > 0 ? Math.round((completed / pastCount) * 100) : 0;
+
+          setProgramProgress({
+            completed,
+            total: total > 0 ? total : 1,
+            percentage: (statsRes as any)?.completion_rate
+              ? Math.round((statsRes as any).completion_rate)
+              : total > 0
+                ? Math.round((completed / total) * 100)
+                : 0,
+            adherence: Math.min(adherence, 100),
+          });
+        }
 
         // Map Metrics
         if (metricsRes) {
@@ -386,6 +445,60 @@ export function ProgressView({ user }: ProgressViewProps) {
   // ===================================
   // TRANSFORM DATA
   // ===================================
+  // Check if program is completed
+  const isProgramCompleted = useMemo(() => {
+    if (!currentProgram) return false;
+    if ((currentProgram as any).end_date) {
+      const endDate = new Date((currentProgram as any).end_date);
+      endDate.setHours(23, 59, 59, 999);
+      if (new Date() > endDate) return true;
+    }
+    if (
+      programProgress.total > 0 &&
+      programProgress.completed >= programProgress.total
+    )
+      return true;
+    return false;
+  }, [currentProgram, programProgress]);
+
+  // Build weekly structure from program details (mirroring trainer side)
+  const structuredWeeks = useMemo(() => {
+    if (!currentProgram) return [];
+    const prog = currentProgram as any;
+    if (!prog.days || !Array.isArray(prog.days)) return [];
+
+    const weeks: Record<number, any[]> = {};
+    prog.days.forEach((d: any) => {
+      const wn = d.week_number ?? 1;
+      if (!weeks[wn]) weeks[wn] = [];
+      weeks[wn].push(d);
+    });
+
+    return Object.entries(weeks).map(([weekNum, weekDays]) => ({
+      weekNumber: parseInt(weekNum),
+      days: weekDays.map((d: any) => ({
+        dayId: d.id,
+        dayNumber: d.day_number,
+        name: d.name,
+        isRest: d.is_rest ?? false,
+        exercises: d.sections
+          ? d.sections.flatMap((s: any) => s.exercises || [])
+          : [],
+      })),
+    }));
+  }, [currentProgram]);
+
+  // Build day → schedule mapping
+  const dayScheduleMap = useMemo(() => {
+    const map: Record<number, Session> = {};
+    programSchedules.forEach((s: any) => {
+      if (s.program_day_id) {
+        map[s.program_day_id] = s;
+      }
+    });
+    return map;
+  }, [programSchedules]);
+
   const uiProgram = useMemo(() => {
     if (!currentProgram) return null;
 
@@ -395,87 +508,105 @@ export function ProgressView({ user }: ProgressViewProps) {
       duration: `${currentProgram.duration_weeks} สัปดาห์`,
       currentWeek: currentProgram.current_week,
       totalWeeks: currentProgram.duration_weeks,
-      exercises: currentProgram.exercises.map((ex) => {
-        const baseExercise = {
-          name: ex.name,
-          type: ex.type,
-          icon: getExerciseIcon(ex.type),
-          sets: ex.program_prescription?.sets || 0,
-          reps: ex.program_prescription?.reps || 0,
-          isBodyweight: ex.is_bodyweight,
-        };
+      startDate: (currentProgram as any).start_date,
+      endDate: (currentProgram as any).end_date,
+      exercises: (() => {
+        if (!programDetails?.days) return [];
 
-        // ... (Keep existing exercise mapping logic)
-        if (ex.type === "weight_training" && !ex.is_bodyweight) {
-          return {
-            ...baseExercise,
-            currentWeight: `${ex.current_performance?.weight_kg || 0}kg`,
-            lastWeight: `${ex.previous_performance?.weight_kg || 0}kg`,
-          };
-        } else if (ex.type === "weight_training" && ex.is_bodyweight) {
-          return {
-            ...baseExercise,
-            currentReps: `${ex.current_performance?.reps || 0}`,
-            lastReps: `${ex.previous_performance?.reps || 0}`,
-          };
-        } else if (ex.type === "cardio") {
-          return {
-            ...baseExercise,
-            distance: `${ex.current_performance?.distance_km || 0}km`,
-            currentTime: formatMinutes(
-              ex.current_performance?.duration_minutes || 0,
-            ),
-            lastTime: formatMinutes(
-              ex.previous_performance?.duration_minutes || 0,
-            ),
-          };
-        } else if (ex.type === "flexibility") {
-          return {
-            ...baseExercise,
-            duration: `${ex.program_prescription?.duration_minutes || 0} นาที`,
-            currentDuration: `${ex.current_performance?.duration_minutes || 0} นาที`,
-            lastDuration: `${ex.previous_performance?.duration_minutes || 0} นาที`,
-          };
-        }
+        console.log("DEBUG: programDetails.days =", programDetails.days);
+        const exercisesMap = new Map();
 
-        return baseExercise;
-      }),
+        programDetails.days.forEach((day: any) => {
+          day.sections?.forEach((section: any) => {
+            section.exercises?.forEach((ex: any) => {
+              console.log("EXERCISE keys:", Object.keys(ex));
+              console.log(
+                "ex.name:",
+                ex.name,
+                "ex.exercise_name:",
+                ex.exercise_name,
+                "ex.exercise:",
+                ex.exercise,
+              );
+              const exerciseName =
+                ex.name || ex.exercise_name || ex.exercise || "Unknown";
+              if (!exercisesMap.has(exerciseName)) {
+                const distanceValStr =
+                  ex.target_metadata?.distance ||
+                  (ex.distance_long ? `${ex.distance_long}km` : "0km");
+                const timeValStr =
+                  ex.target_metadata?.duration ||
+                  (ex.duration ? `${ex.duration} นาที` : "0 นาที");
+
+                const baseExercise = {
+                  name: exerciseName,
+                  type: ex.type || "weight_training",
+                  icon: getExerciseIcon(ex.type || "weight_training"),
+                  sets: ex.sets || 0,
+                  reps: ex.reps_max || ex.reps_min || 0,
+                  isBodyweight: ex.is_bodyweight || false,
+                };
+
+                let combinedExercise = baseExercise as any;
+
+                // Cardio specifics for UI display logic later
+                if (baseExercise.type === "cardio") {
+                  combinedExercise = {
+                    ...baseExercise,
+                    distance: distanceValStr,
+                    currentTime: timeValStr,
+                  } as any;
+                } else if (baseExercise.type === "flexibility") {
+                  combinedExercise = {
+                    ...baseExercise,
+                    duration: timeValStr,
+                  } as any;
+                }
+
+                exercisesMap.set(exerciseName, combinedExercise);
+              }
+            });
+          });
+        });
+
+        return Array.from(exercisesMap.values());
+      })(),
     };
-  }, [currentProgram]);
+  }, [currentProgram, programDetails]);
 
   const uiExerciseHistory = useMemo(() => {
     if (!exerciseHistory) return [];
 
-    return exerciseHistory.map((ex) => {
+    return (exerciseHistory || []).map((ex) => {
       // Map native fields to FIELD_CONFIG keys — all 16 possible tracking fields
       const recordMapper = (record: any) => ({
         date: record.date,
-        // --- Weight Training ---
-        weight: record.weight_kg || 0,
-        reps: record.reps || 0,
-        sets: record.sets || 0,
-        rest: record.rest || 0,
-        rpe: record.max_rpe || record.rpe || 0,
-        one_rm: record.one_rm || 0,
-        rir: record.rir || 0,
+        // --- Weight Training --- (use ?? to preserve 0 as valid value)
+        weight: record.weight_kg ?? 0,
+        reps: record.reps ?? 0,
+        sets: record.sets ?? 0,
+        rest: record.rest_seconds ?? record.rest ?? 0,
+        rpe: record.max_rpe ?? record.rpe ?? 0,
+        one_rm: record.one_rm ?? 0,
+        rir: record.rir ?? 0,
         // --- Cardio ---
-        time: record.duration_minutes || record.time || 0,
-        speed: record.speed || 0,
-        cadence: record.cadence || 0,
-        distance_long: record.distance_km || record.distance_long || 0,
-        distance_short: record.distance_short || 0,
-        heart_rate: record.avg_heart_rate || record.heart_rate || 0,
-        hr_zone: record.hr_zone || 0,
-        watts: record.watts || record.watt || 0,
-        rpm: record.rpm || 0,
-        rounds: record.rounds || 0,
+        time: record.duration_minutes ?? 0,
+        speed: record.speed ?? 0,
+        cadence: record.cadence ?? 0,
+        distance_long: record.distance_km ?? 0,
+        distance_short: record.distance_short ?? 0,
+        heart_rate: record.heart_rate ?? 0,
+        hr_zone: record.hr_zone ?? 0,
+        watts: record.watts ?? 0,
+        rpm: record.rpm ?? 0,
+        rounds: record.rounds ?? 0,
         // --- Derived / Extra ---
-        distance: record.distance_km || 0,
-        duration: record.duration_minutes || 0,
-        pace: record.pace_min_per_km || 0,
-        calories: record.calories || 0,
-        totalReps: record.total_reps || 0,
-        volume: record.volume || 0,
+        distance: record.distance_km ?? 0,
+        duration: record.duration_minutes ?? 0,
+        pace: record.pace_min_per_km ?? 0,
+        calories: record.calories ?? 0,
+        totalReps: record.total_reps ?? 0,
+        volume: record.volume ?? 0,
       });
 
       // Determine tracking fields: use provided ones or defaults based on type + bodyweight
@@ -498,7 +629,7 @@ export function ProgressView({ user }: ProgressViewProps) {
           ? ex.tracking_fields
           : defaultFields;
 
-      const mappedData = ex.history.map(recordMapper);
+      const mappedData = (ex.history || []).map(recordMapper);
 
       // Only exclude non-metric fields that shouldn't appear as table columns
       const excludeFields = [
@@ -517,7 +648,7 @@ export function ProgressView({ user }: ProgressViewProps) {
       );
 
       return {
-        exercise: ex.exercise_name,
+        exercise: ex.exercise || ex.exercise_name || "Unknown",
         type: ex.type,
         isBodyweight: ex.is_bodyweight,
         icon: getExerciseIcon(ex.type),
@@ -528,164 +659,6 @@ export function ProgressView({ user }: ProgressViewProps) {
   }, [exerciseHistory]);
   // ... (Keep existing helper functions)
   // getMetricLabel removed as it is no longer used
-
-  const renderExerciseValue = (exercise: any) => {
-    const config = getTypeConfig(exercise.type);
-
-    switch (exercise.type) {
-      case "weight_training":
-        if (exercise.isBodyweight) {
-          return (
-            <div className="text-right">
-              <p className={`font-bold text-lg ${config.color}`}>
-                {exercise.currentReps} รอบ/เซต
-              </p>
-              <p className="text-xs text-muted-foreground">
-                ครั้งก่อน: {exercise.lastReps} รอบ/เซต
-              </p>
-            </div>
-          );
-        } else {
-          return (
-            <div className="text-right">
-              <p className={`font-bold text-lg ${config.color}`}>
-                {exercise.currentWeight}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                ครั้งก่อน: {exercise.lastWeight}
-              </p>
-            </div>
-          );
-        }
-      case "cardio":
-        return (
-          <div className="text-right">
-            <p className={`font-bold text-lg ${config.color}`}>
-              {exercise.distance}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              เวลา: {exercise.currentTime} (ครั้งก่อน: {exercise.lastTime})
-            </p>
-          </div>
-        );
-      case "flexibility":
-        return (
-          <div className="text-right">
-            <p className={`font-bold text-lg ${config.color}`}>
-              {exercise.currentDuration}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              ครั้งก่อน: {exercise.lastDuration}
-            </p>
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
-
-  const renderChart = (
-    selectedExerciseType: any,
-    selectedExerciseData: any[],
-  ) => {
-    const data = selectedExerciseData;
-    if (!selectedExerciseType) return null;
-
-    const config = getTypeConfig(selectedExerciseType.type);
-    const trackingFields = selectedExerciseType.trackingFields || [];
-    const type = selectedExerciseType.type;
-    const isBodyweight = selectedExerciseType.isBodyweight;
-
-    let primaryKey = "";
-    let secondaryKey = "";
-    let primaryLabel = "";
-    let secondaryLabel = "";
-
-    if (type === "weight_training") {
-      if (isBodyweight) {
-        primaryKey = "reps"; // Using 'reps' for Reps/Set
-        primaryLabel = "รอบ/เซต";
-        secondaryKey = "totalReps"; // Need to ensure totalReps is mapped in uiExerciseHistory
-        secondaryLabel = "รอบรวม";
-      } else {
-        primaryKey = "weight";
-        primaryLabel = "น้ำหนัก (kg)";
-        secondaryKey = "reps"; // Using 'reps' for Reps
-        secondaryLabel = "จำนวนครั้ง (รอบ)";
-      }
-    } else if (type === "cardio") {
-      primaryKey = "distance";
-      primaryLabel = "ระยะทาง (km)";
-      secondaryKey = "duration";
-      secondaryLabel = "เวลา (นาที)";
-    } else if (type === "flexibility") {
-      primaryKey = "duration";
-      primaryLabel = "เวลา (นาที)";
-    } else {
-      // Fallback
-      primaryKey = trackingFields[0] || "weight";
-      primaryLabel = FIELD_CONFIG[primaryKey]?.label || primaryKey;
-    }
-
-    return (
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis
-            dataKey="date"
-            tickFormatter={(value) => format(parseISO(value), "dd/MM")}
-          />
-          <YAxis
-            yAxisId="left"
-            label={{
-              value: primaryLabel,
-              angle: -90,
-              position: "insideLeft",
-            }}
-          />
-          {secondaryKey && (
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              label={{
-                value: secondaryLabel,
-                angle: 90,
-                position: "insideRight",
-              }}
-            />
-          )}
-          <Tooltip
-            labelFormatter={(value) =>
-              format(parseISO(value as string), "dd MMM yyyy", {
-                locale: th,
-              })
-            }
-          />
-          <Legend />
-          <Line
-            yAxisId="left"
-            type="monotone"
-            dataKey={primaryKey}
-            stroke={config.chartColor}
-            strokeWidth={2}
-            name={primaryLabel}
-            connectNulls
-          />
-          {secondaryKey && (
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey={secondaryKey}
-              stroke="#fbbf24"
-              strokeWidth={2}
-              name={secondaryLabel}
-              connectNulls
-            />
-          )}
-        </LineChart>
-      </ResponsiveContainer>
-    );
-  };
 
   const renderTable = (
     selectedExerciseType: any,
@@ -719,8 +692,8 @@ export function ProgressView({ user }: ProgressViewProps) {
       rounds: "Rounds",
       // Legacy/derived
       distance: "ระยะทาง (km)",
-      duration: "เวลา (นาที)",
-      pace: "Pace (min/km)",
+      duration: "เวลา",
+      pace: "Pace",
       calories: "แคลอรี",
     };
 
@@ -735,69 +708,58 @@ export function ProgressView({ user }: ProgressViewProps) {
 
       // Time/Duration fields → format as mm:ss
       if (field === "duration" || field === "time" || field === "rest") {
-        return Number(raw) > 0 ? formatMinutes(Number(raw)) : "-";
+        return Number(raw) > 0 ? formatMinutes(Number(raw)) : "0:00";
       }
       // Pace → format as mm:ss
       if (field === "pace") {
-        return Number(raw) > 0 ? formatMinutes(Number(raw)) : "-";
+        return Number(raw) > 0 ? formatMinutes(Number(raw)) : "0:00";
       }
       // Weight → append kg
       if (field === "weight") {
-        return Number(raw) > 0 ? `${Number(raw).toFixed(1)}` : "-";
+        return Number(raw) > 0 ? `${Number(raw).toFixed(1)}` : "0";
       }
       // Distance fields → append km
       if (field === "distance" || field === "distance_long") {
-        return Number(raw) > 0 ? `${Number(raw).toFixed(2)}` : "-";
+        return Number(raw) > 0 ? `${Number(raw).toFixed(2)}` : "0";
       }
       if (field === "distance_short") {
-        return Number(raw) > 0 ? `${Number(raw)}` : "-";
+        return Number(raw) > 0 ? `${Number(raw)}` : "0";
       }
       // Heart rate → bpm
       if (field === "heart_rate") {
-        return Number(raw) > 0 ? `${Math.round(Number(raw))}` : "-";
+        return Number(raw) > 0 ? `${Math.round(Number(raw))}` : "0";
       }
       // HR Zone → %
       if (field === "hr_zone") {
-        return Number(raw) > 0 ? `${Number(raw)}%` : "-";
+        return Number(raw) > 0 ? `${Number(raw)}%` : "0";
       }
       // Watts
       if (field === "watts") {
-        return Number(raw) > 0 ? `${Math.round(Number(raw))}` : "-";
+        return Number(raw) > 0 ? `${Math.round(Number(raw))}` : "0";
       }
       // Cadence / RPM
       if (field === "cadence" || field === "rpm") {
-        return Number(raw) > 0 ? `${Math.round(Number(raw))}` : "-";
+        return Number(raw) > 0 ? `${Math.round(Number(raw))}` : "0";
       }
       // Speed
       if (field === "speed") {
-        return Number(raw) > 0 ? `${Number(raw).toFixed(1)}` : "-";
+        return Number(raw) > 0 ? `${Number(raw).toFixed(1)}` : "0";
       }
       // 1RM percentage
       if (field === "one_rm") {
-        return Number(raw) > 0 ? `${Number(raw)}%` : "-";
+        return Number(raw) > 0 ? `${Number(raw)}%` : "0%";
       }
       // RIR
       if (field === "rir") {
-        return Number(raw) > 0 ? `${Number(raw)}` : "-";
+        return Number(raw) > 0 ? `${Number(raw)}` : "0";
       }
       // Rounds
       if (field === "rounds") {
-        return Number(raw) > 0 ? `${Number(raw)}` : "-";
+        return Number(raw) > 0 ? `${Number(raw)}` : "0";
       }
       // RPE
       if (field === "rpe") {
-        return Number(raw) > 0 ? `${Number(raw)}` : "-";
-      }
-      // Numeric zero → show "-" (except reps/sets)
-      if (
-        typeof raw === "number" &&
-        raw === 0 &&
-        field !== "reps" &&
-        field !== "sets" &&
-        field !== "rir" &&
-        field !== "rpe"
-      ) {
-        return "-";
+        return Number(raw) > 0 ? `${Number(raw)}` : "0";
       }
 
       return String(raw);
@@ -870,69 +832,6 @@ export function ProgressView({ user }: ProgressViewProps) {
       uiExerciseHistory[0]
     );
   }, [selectedExercise, uiExerciseHistory]);
-
-  const selectedConfig = useMemo(() => {
-    return selectedExerciseType
-      ? getTypeConfig(selectedExerciseType.type)
-      : getTypeConfig("weight_training");
-  }, [selectedExerciseType]);
-
-  const exerciseProgress = useMemo(() => {
-    if (selectedExerciseData.length < 2) return "0";
-    const first = selectedExerciseData[0];
-    const last = selectedExerciseData[selectedExerciseData.length - 1];
-
-    // Check if we have valid numeric values depending on type
-    // Default heuristic: comparing first vs last 'weight' or primary metric
-    // But safely handle if 'weight' doesn't exist (e.g. cardio)
-    // For now, let's just use what was there or 0.
-    // The original code used .weight implicitly.
-    // We should adapt if needed, but for now restoring original logic with safe checks.
-
-    if (!first || !last) return "0";
-
-    let val1 = 0;
-    let val2 = 0;
-    const type = selectedExerciseType?.type;
-    const isBodyweight = selectedExerciseType?.isBodyweight;
-
-    if (type === "weight_training") {
-      if (isBodyweight) {
-        val1 = (first as any).totalReps || (first as any).reps || 0;
-        val2 = (last as any).totalReps || (last as any).reps || 0;
-      } else {
-        val1 = (first as any).weight || 0;
-        val2 = (last as any).weight || 0;
-      }
-    } else if (type === "cardio") {
-      // Prioritize distance, fallback to duration
-      if ((first as any).distance > 0 || (last as any).distance > 0) {
-        val1 = (first as any).distance || 0;
-        val2 = (last as any).distance || 0;
-      } else {
-        val1 = (first as any).duration || 0;
-        val2 = (last as any).duration || 0;
-      }
-    } else if (type === "flexibility") {
-      val1 = (first as any).totalDuration || (first as any).duration || 0;
-      val2 = (last as any).totalDuration || (last as any).duration || 0;
-    } else {
-      // Fallback for unknown types or direct metrics
-      val1 =
-        (first as any).weight ||
-        (first as any).oneRm ||
-        (first as any).vo2Max ||
-        0;
-      val2 =
-        (last as any).weight ||
-        (last as any).oneRm ||
-        (last as any).vo2Max ||
-        0;
-    }
-
-    if (val1 === 0) return "0";
-    return (((val2 - val1) / val1) * 100).toFixed(1);
-  }, [selectedExerciseData, selectedExerciseType]);
 
   // ===================================
   // NEW: Goal-based logic
@@ -1048,6 +947,9 @@ export function ProgressView({ user }: ProgressViewProps) {
               new Date(a.date).getTime() - new Date(b.date).getTime(),
           );
       }
+      // falls through to default if no return above — but we always return above.
+      // Adding explicit default-safety:
+      // eslint-disable-next-line no-fallthrough
       case "strength": {
         const dailyData: Record<string, any> = {};
 
@@ -1485,17 +1387,16 @@ export function ProgressView({ user }: ProgressViewProps) {
     const last: any = chartDataByGoal[chartDataByGoal.length - 1];
 
     switch (userGoalKey) {
-      case "weight_loss":
+      case "weight_loss": {
         if (!first.weight || !last.weight) return null;
+        const weightChange = first.weight - last.weight; // positive = lost weight
         return {
-          value: (first.weight - last.weight).toFixed(1),
+          value: weightChange.toFixed(1),
           label: "น้ำหนักที่ลดไป",
           unit: "kg",
-          percentage: (
-            ((first.weight - last.weight) / first.weight) *
-            100
-          ).toFixed(1),
+          percentage: ((weightChange / first.weight) * 100).toFixed(1),
         };
+      }
       case "muscle_building":
         if (first.weight && last.weight) {
           return {
@@ -1520,20 +1421,24 @@ export function ProgressView({ user }: ProgressViewProps) {
           };
         }
         return null;
-      case "strength":
-        if (!first.oneRm || !last.oneRm) return null;
+      case "strength": {
+        // Strength chart uses dynamic exercise-name keys (not a fixed "oneRm" field).
+        // Find the first numeric key to compute progress.
+        const numericKeys = Object.keys(first).filter(
+          (k) => k !== "date" && typeof first[k] === "number",
+        );
+        if (numericKeys.length === 0) return null;
+        const primaryKey = numericKeys[0];
+        const firstVal = first[primaryKey];
+        const lastVal = last[primaryKey];
+        if (!firstVal || !lastVal) return null;
         return {
-          value: (
-            chartDataByGoal.reduce((sum: number, d: any) => sum + d.oneRm, 0) /
-            chartDataByGoal.length
-          ).toFixed(1),
-          label: "1RM เฉลี่ย",
+          value: lastVal.toFixed(1),
+          label: `1RM ล่าสุด (${primaryKey})`,
           unit: "kg",
-          percentage: (
-            ((last.oneRm - first.oneRm) / first.oneRm) *
-            100
-          ).toFixed(1),
+          percentage: (((lastVal - firstVal) / firstVal) * 100).toFixed(1),
         };
+      }
       case "general_health":
         if (!last.vo2Max) return null;
         return {
@@ -1581,176 +1486,353 @@ export function ProgressView({ user }: ProgressViewProps) {
                 <p>{error}</p>
               </div>
             ) : uiProgram ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-3 space-y-6">
-                  <Card className="h-full border-blue-100 bg-white shadow-sm hover:shadow-md transition-all duration-300">
-                    <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 pb-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <Badge className="mb-2 bg-blue-100 text-blue-700 hover:bg-blue-200 border-none">
-                            โปรแกรมปัจจุบัน
+              <div className="grid grid-cols-1 gap-6">
+                {/* 1. Current Program Info */}
+                <Card className="border-none shadow-sm rounded-2xl bg-white overflow-hidden ring-1 ring-slate-100">
+                  <CardHeader className="bg-slate-50/50 border-b border-slate-100/50 pb-5">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 mb-1.5 text-xl text-blue-900">
+                          <Dumbbell className="h-5 w-5" />
+                          {uiProgram.name}
+                        </CardTitle>
+                        <CardDescription className="text-blue-600/80">
+                          {uiProgram.description}
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-5 flex flex-col gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">ระยะเวลา</p>
+                        <p className="font-medium">{uiProgram.duration}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">สถานะ</p>
+                        {isProgramCompleted ? (
+                          <Badge className="bg-slate-100 text-slate-700 border-0">
+                            เสร็จสิ้นแล้ว
                           </Badge>
-                          <CardTitle className="text-xl text-blue-900">
-                            {uiProgram.name}
-                          </CardTitle>
-                          <CardDescription className="text-blue-600/80 mt-1">
-                            {uiProgram.description}
-                          </CardDescription>
-                        </div>
+                        ) : (
+                          <Badge className="bg-green-100 text-green-700 border-0">
+                            กำลังใช้งาน
+                          </Badge>
+                        )}
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      {/* Progress Bar */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-medium">
-                          <span className="text-slate-600">ความคืบหน้า</span>
-                          <span className="text-blue-600">
-                            สัปดาห์ที่ {uiProgram.currentWeek} /{" "}
-                            {uiProgram.totalWeeks}
-                          </span>
-                        </div>
-                        <Progress
-                          value={
-                            (uiProgram.currentWeek / uiProgram.totalWeeks) * 100
-                          }
-                          className="h-2.5 bg-blue-100"
-                        />
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">
+                          สัปดาห์ปัจจุบัน
+                        </p>
+                        <p className="font-medium">
+                          สัปดาห์ที่ {uiProgram.currentWeek}
+                        </p>
                       </div>
+                    </div>
 
-                      {/* Time Remaining */}
-                      <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <div className="bg-white p-2 rounded-lg shadow-sm">
-                          <CalendarDays className="h-5 w-5 text-slate-500" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500">
-                            ระยะเวลาโปรแกรม
-                          </p>
-                          <p className="text-sm font-semibold text-slate-700">
-                            {uiProgram.duration}
-                          </p>
-                        </div>
+                    {(uiProgram.startDate || uiProgram.endDate) && (
+                      <div className="flex items-center gap-2 mt-2 pt-3 border-t border-slate-100 text-sm text-slate-600">
+                        <Calendar className="h-4 w-4 text-[#002140]" />
+                        <span>
+                          {uiProgram.startDate
+                            ? `เริ่ม: ${new Date(uiProgram.startDate).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}`
+                            : ""}
+                          {uiProgram.startDate && uiProgram.endDate
+                            ? " → "
+                            : ""}
+                          {uiProgram.endDate
+                            ? `สิ้นสุด: ${new Date(uiProgram.endDate).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}`
+                            : ""}
+                        </span>
                       </div>
+                    )}
 
-                      {/* Stats Grid */}
-                      {programStats && (
-                        <div className="space-y-4">
-                          {/* Achievements */}
-                          {programStats?.achievements_this_period &&
-                            programStats.achievements_this_period.length >
-                              0 && (
-                              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <Award className="w-5 h-5 text-yellow-600" />
-                                  <h4 className="font-semibold text-yellow-800">
-                                    ความสำเร็จในช่วงนี้
-                                  </h4>
+                    {/* Stats Grid (Achievements) */}
+                    {programStats &&
+                      programStats?.achievements_this_period &&
+                      programStats.achievements_this_period.length > 0 && (
+                        <div className="mt-2 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Award className="w-5 h-5 text-yellow-600" />
+                            <h4 className="font-semibold text-yellow-800">
+                              ความสำเร็จในช่วงนี้
+                            </h4>
+                          </div>
+                          <div className="space-y-2">
+                            {programStats.achievements_this_period.map(
+                              (achievement, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-start gap-2"
+                                >
+                                  <Badge
+                                    variant="secondary"
+                                    className="mt-0.5 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200"
+                                  >
+                                    {achievement.type === "personal_record"
+                                      ? "🏆 PR"
+                                      : "⭐ Milestone"}
+                                  </Badge>
+                                  <div>
+                                    <p className="text-sm font-medium text-yellow-900">
+                                      {achievement.description}
+                                    </p>
+                                    {achievement.exercise && (
+                                      <p className="text-xs text-yellow-700">
+                                        {achievement.exercise}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="space-y-2">
-                                  {programStats.achievements_this_period.map(
-                                    (achievement, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="flex items-start gap-2"
-                                      >
-                                        <Badge
-                                          variant="secondary"
-                                          className="mt-0.5 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200"
-                                        >
-                                          {achievement.type ===
-                                          "personal_record"
-                                            ? "🏆 PR"
-                                            : "⭐ Milestone"}
-                                        </Badge>
-                                        <div>
-                                          <p className="text-sm font-medium text-yellow-900">
-                                            {achievement.description}
-                                          </p>
-                                          {achievement.exercise && (
-                                            <p className="text-xs text-yellow-700">
-                                              {achievement.exercise}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ),
-                                  )}
-                                </div>
-                              </div>
+                              ),
                             )}
+                          </div>
                         </div>
                       )}
+                  </CardContent>
+                </Card>
 
-                      {/* Exercises List (Embedded) */}
-                      <div className="mt-6 pt-6 border-t border-slate-100">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Dumbbell className="h-5 w-5 text-blue-500" />
-                          <h4 className="font-semibold text-slate-700">
-                            รายการท่าออกกำลังกาย
-                          </h4>
+                {/* 2. Program Progress */}
+                <Card className="border-none shadow-sm rounded-2xl bg-white ring-1 ring-slate-100">
+                  <CardHeader className="pb-3">
+                    <CardTitle>ความก้าวหน้าโปรแกรม</CardTitle>
+                    <CardDescription>
+                      ติดตามความก้าวหน้าตามโปรแกรมที่กำหนด
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium">
+                          ความก้าวหน้าโดยรวม
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {programProgress.percentage}%
+                        </p>
+                      </div>
+                      <Progress
+                        value={programProgress.percentage}
+                        className="h-2"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500 mb-2">
+                          การฝึกที่เสร็จสิ้น
+                        </p>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-bold">
+                            {programProgress.completed}
+                          </span>
+                          <span className="text-sm text-gray-400">
+                            / {programProgress.total}
+                          </span>
                         </div>
-                        <div className="divide-y divide-slate-100">
-                          {uiProgram.exercises.map((exercise, idx) => {
-                            const ExerciseIcon = exercise.icon;
-                            const config = getTypeConfig(exercise.type);
+                        <p className="text-xs text-gray-500">เซสชันทั้งหมด</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-2">
+                          อัตราการเข้าร่วม
+                        </p>
+                        <div className="text-2xl font-bold">
+                          {programProgress.adherence}%
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          จากเซสชันที่ผ่านมา
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                            return (
-                              <div
-                                key={idx}
-                                className="py-3 hover:bg-slate-50 transition-colors flex items-center justify-between group rounded-lg px-2 -mx-2"
-                              >
-                                <div className="flex items-center gap-3">
+                {/* 3. Program Structure */}
+                {structuredWeeks.length > 0 && (
+                  <Card className="border-none shadow-sm rounded-2xl bg-white ring-1 ring-slate-100">
+                    <CardHeader className="pb-3">
+                      <CardTitle>โครงสร้างโปรแกรม</CardTitle>
+                      <CardDescription>
+                        รายละเอียดการฝึกรายสัปดาห์
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {structuredWeeks.slice(0, 2).map((week: any) => (
+                          <div
+                            key={week.weekNumber}
+                            className="border border-slate-100 rounded-xl p-4 md:p-5 bg-white shadow-sm"
+                          >
+                            <h4 className="font-bold text-navy-900 mb-4 flex items-center gap-2">
+                              <div className="h-8 w-8 rounded-full bg-navy-50 flex items-center justify-center">
+                                <Calendar className="h-4 w-4 text-navy-600" />
+                              </div>
+                              สัปดาห์ที่ {week.weekNumber}
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {week.days.map((day: any) => {
+                                const schedule = day.dayId
+                                  ? dayScheduleMap[day.dayId]
+                                  : null;
+                                return (
                                   <div
-                                    className={`p-2 rounded-lg ${config.bgColor} group-hover:scale-105 transition-transform duration-300`}
+                                    key={day.dayNumber}
+                                    className="border border-slate-100 rounded-xl p-3 md:p-4 bg-slate-50/50 hover:bg-slate-50 transition-colors"
                                   >
-                                    <ExerciseIcon
-                                      className={`h-4 w-4 ${config.color}`}
-                                    />
-                                  </div>
-                                  <div>
-                                    <h4 className="font-medium text-sm text-slate-700">
-                                      {exercise.name}
-                                    </h4>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <Badge
-                                        variant="secondary"
-                                        className={`text-[10px] h-4 px-1.5 ${config.badgeColor} border-none`}
-                                      >
-                                        {config.label}
-                                      </Badge>
-                                      {exercise.type === "weight_training" && (
-                                        <span className="text-xs text-slate-500">
-                                          {exercise.sets} เซต × {exercise.reps}{" "}
-                                          ครั้ง
-                                        </span>
-                                      )}
-                                      {exercise.type === "cardio" && (
-                                        <span className="text-xs text-slate-500">
-                                          {exercise.sets} เซต ×{" "}
-                                          {(exercise as any).distance !== "0km"
-                                            ? (exercise as any).distance
-                                            : (exercise as any).currentTime}
-                                        </span>
-                                      )}
-                                      {exercise.type === "flexibility" && (
-                                        <span className="text-xs text-slate-500">
-                                          {exercise.sets} เซต ×{" "}
-                                          {(exercise as any).duration}
-                                        </span>
+                                    <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+                                      <div>
+                                        <div className="font-semibold text-sm text-navy-900">
+                                          วันที่ {day.dayNumber}: {day.name}
+                                        </div>
+                                        {schedule && (
+                                          <div className="flex items-center gap-1 mt-0.5">
+                                            <Calendar className="h-3 w-3 text-slate-400" />
+                                            <span className="text-[10px] text-slate-500">
+                                              {new Date(
+                                                schedule.start_time,
+                                              ).toLocaleDateString("th-TH", {
+                                                weekday: "short",
+                                                day: "numeric",
+                                                month: "short",
+                                              })}
+                                            </span>
+                                            {schedule.status ===
+                                              "completed" && (
+                                              <span className="text-[9px] text-green-600 font-medium">
+                                                ✓
+                                              </span>
+                                            )}
+                                            {schedule.status ===
+                                              "cancelled" && (
+                                              <span className="text-[9px] text-red-500 font-medium">
+                                                ยกเลิก
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="text-[10px] font-bold text-navy-600 bg-white px-2.5 py-0.5 rounded-full border border-slate-200 flex items-center justify-center shadow-sm">
+                                        {day.exercises?.length || 0} ท่า
+                                      </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                      {day.exercises &&
+                                      day.exercises.length > 0 ? (
+                                        <>
+                                          {day.exercises
+                                            .slice(0, 3)
+                                            .map(
+                                              (exercise: any, idx: number) => (
+                                                <div
+                                                  key={idx}
+                                                  className="text-[11px] flex items-center gap-1.5 text-gray-700 font-medium"
+                                                >
+                                                  <Dumbbell className="h-3.5 w-3.5 text-navy-600 shrink-0" />
+                                                  <span className="truncate">
+                                                    {exercise.exercise_name ||
+                                                      `Exercise ${idx + 1}`}
+                                                  </span>
+                                                </div>
+                                              ),
+                                            )}
+                                          {day.exercises.length > 3 && (
+                                            <div className="text-[10px] text-gray-400 italic mt-1 ml-5">
+                                              และอีก {day.exercises.length - 3}{" "}
+                                              ท่า...
+                                            </div>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <div className="text-xs text-muted-foreground italic">
+                                          {day.isRest
+                                            ? "วันพัก"
+                                            : "ไม่มีท่าฝึก"}
+                                        </div>
                                       )}
                                     </div>
                                   </div>
-                                </div>
-                                {/* Value display can be simpler here or keep renderExerciseValue */}
-                                {renderExerciseValue(exercise)}
-                              </div>
-                            );
-                          })}
-                        </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                        {structuredWeeks.length > 2 && (
+                          <div className="text-center py-4">
+                            <p className="text-gray-500 text-sm">
+                              และอีก {structuredWeeks.length - 2} สัปดาห์...
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
-                </div>
+                )}
+
+                {/* 4. Exercises List (Now a separate Card) */}
+                <Card className="border-none shadow-sm rounded-2xl bg-white ring-1 ring-slate-100">
+                  <CardHeader className="pb-3 border-b border-slate-100/50">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Dumbbell className="h-5 w-5 text-blue-500" />
+                      รายการท่าออกกำลังกายโปรแกรมปัจจุบัน
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    <div className="divide-y divide-slate-100">
+                      {uiProgram.exercises.map((exercise, idx) => {
+                        const ExerciseIcon = exercise.icon;
+                        const config = getTypeConfig(exercise.type);
+
+                        return (
+                          <div
+                            key={idx}
+                            className="py-3 hover:bg-slate-50 transition-colors flex items-center justify-between group rounded-lg px-2 -mx-2"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`p-2 rounded-lg ${config.bgColor} group-hover:scale-105 transition-transform duration-300`}
+                              >
+                                <ExerciseIcon
+                                  className={`h-4 w-4 ${config.color}`}
+                                />
+                              </div>
+                              <div>
+                                <h4 className="font-medium text-sm text-slate-700">
+                                  {exercise.name}
+                                </h4>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <Badge
+                                    variant="secondary"
+                                    className={`text-[10px] h-4 px-1.5 ${config.badgeColor} border-none`}
+                                  >
+                                    {config.label}
+                                  </Badge>
+                                  {exercise.type === "weight_training" && (
+                                    <span className="text-xs text-slate-500">
+                                      {exercise.sets} เซต
+                                    </span>
+                                  )}
+                                  {exercise.type === "cardio" && (
+                                    <span className="text-xs text-slate-500">
+                                      {exercise.sets} เซต ×{" "}
+                                      {(exercise as any).distance &&
+                                      (exercise as any).distance !== "0km"
+                                        ? (exercise as any).distance
+                                        : (exercise as any).currentTime || "-"}
+                                    </span>
+                                  )}
+                                  {exercise.type === "flexibility" && (
+                                    <span className="text-xs text-slate-500">
+                                      {exercise.sets} เซต ×{" "}
+                                      {(exercise as any).duration || "-"}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             ) : (
               <div className="p-12 text-center text-muted-foreground">
@@ -1820,32 +1902,6 @@ export function ProgressView({ user }: ProgressViewProps) {
                         </SelectContent>
                       </Select>
                     </div>
-
-                    <div className="mb-4 flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="text-base py-1 px-3">
-                        ความก้าวหน้า:
-                        <span
-                          className={`ml-2 font-bold ${parseFloat(exerciseProgress) > 0 ? "text-green-600" : "text-red-600"}`}
-                        >
-                          {parseFloat(exerciseProgress) > 0 ? "+" : ""}
-                          {exerciseProgress}%
-                        </span>
-                      </Badge>
-                      <Badge className={selectedConfig.badgeColor}>
-                        {selectedConfig.label}
-                      </Badge>
-                      <Badge variant="secondary" className="text-xs">
-                        แนะนำ: {selectedConfig.frequency}
-                      </Badge>
-                    </div>
-
-                    <div className="mb-4 p-3 bg-muted/50 rounded-lg">
-                      <p className="text-sm text-muted-foreground">
-                        {selectedConfig.description}
-                      </p>
-                    </div>
-
-                    {renderChart(selectedExerciseType, selectedExerciseData)}
 
                     <div className="mt-6">
                       <h4 className="font-semibold mb-3">

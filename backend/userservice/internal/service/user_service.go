@@ -168,7 +168,7 @@ func (s *userService) LoginUser(req LoginRequest) (string, error) {
 		"user_id": user.ID,
 		"name":    user.Name,
 		"role":    user.Role,
-		"exp":     time.Now().Add(time.Minute * 15).Unix(), // หมดอายุใน 15 นาที
+		"exp":     time.Now().Add(time.Hour * 24).Unix(), // หมดอายุใน 24 ชั่วโมง
 	}
 
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)

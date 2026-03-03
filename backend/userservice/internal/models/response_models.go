@@ -65,7 +65,6 @@ type SessionSetResponse struct {
 	TargetWeight *float64 `json:"target_weight,omitempty"`
 	TargetRPE    *float64 `json:"target_rpe,omitempty"`
 
-	// Additional planned fields
 	TargetDuration *int                   `json:"target_duration,omitempty"`
 	TargetDistance *float64               `json:"target_distance,omitempty"`
 	TargetPace     *string                `json:"target_pace,omitempty"`
@@ -91,23 +90,35 @@ type SessionSummaryResponse struct {
 	TotalVolume        float64 `json:"total_volume"`
 }
 
-// 5. Current Program Response
+// 5. CurrentProgramResponse
 type CurrentProgramResponse struct {
+	ID            int                       `json:"id"`
 	Name          string                    `json:"name"`
 	CurrentWeek   int                       `json:"current_week"`
 	DurationWeeks int                       `json:"duration_weeks"`
+	DaysPerWeek   int                       `json:"days_per_week"`
+	StartDate     *time.Time                `json:"start_date"`
+	EndDate       *time.Time                `json:"end_date"`
 	Exercises     []ProgramExerciseProgress `json:"exercises"`
 }
 
 type ProgramExerciseProgress struct {
 	Name                string           `json:"name"`
+	Type                string           `json:"type"`
+	Category            string           `json:"category"`
+	IsBodyweight        bool             `json:"is_bodyweight"`
+	ProgramPrescription *PerformanceData `json:"program_prescription"` // Using PerformanceData struct for sets/reps
 	CurrentPerformance  *PerformanceData `json:"current_performance"`
 	PreviousPerformance *PerformanceData `json:"previous_performance"`
 	ProgressPercentage  float64          `json:"progress_percentage"`
 }
 
 type PerformanceData struct {
-	WeightKg float64 `json:"weight_kg"`
+	WeightKg        float64 `json:"weight_kg,omitempty"`
+	Reps            int     `json:"reps,omitempty"`
+	Sets            int     `json:"sets,omitempty"`
+	DistanceKm      float64 `json:"distance_km,omitempty"`
+	DurationMinutes int     `json:"duration_minutes,omitempty"`
 }
 
 // 6. Exercise History Response

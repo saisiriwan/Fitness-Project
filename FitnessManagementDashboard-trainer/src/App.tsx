@@ -29,42 +29,44 @@ import DashboardLayout from "@/components/DashboardLayout";
 
 // --- Route Guards ---
 
+/* Route Guard: PublicRoute
+   หน้าที่: ครอบหน้าสาธารณะ (เช่น SignIn)
+   - ถ้าล็อกอินแล้ว + เป็น trainer → redirect ไปหน้า dashboard
+   - ถ้ายังไม่ล็อกอิน → แสดงหน้า SignIn ตามปกติ */
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, loading } = useAuth();
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <div>Loading...</div>; // รอเช็คสถานะ auth
 
   if (isAuthenticated) {
     if (user?.role === "trainer") {
-      return <Navigate to="/trainer/dashboard" replace />;
+      return <Navigate to="/trainer/dashboard" replace />; // ไปหน้า dashboard
     }
-    // If authenticated but NOT a trainer (e.g. trainee logged in on same localhost)
-    // Do NOT redirect to trainer dashboard.
-    // Instead, we might want to show a "Wrong Portal" message or just let them see the SignIn page
-    // where they can choose to logout.
-    // For now, let's render children (SignIn) so they can click "Switch Account" or Logout if we record it.
-    // Or better, force logout? But that disrupts the other tab.
-    // Safest: Render children (SignIn) allowing them to see standard page,
-    // maybe show a warning "You are logged in as Trainee".
+    // ถ้าเป็น role อื่น (เช่น trainee) → แสดงหน้า SignIn ไว้
     return <>{children}</>;
   }
   return <>{children}</>;
 }
 
+/* Route Guard: TrainerRoute
+   หน้าที่: ครอบหน้าที่ต้องเป็น Trainer ถึงจะเข้าได้
+   - ไม่ล็อกอิน → redirect ไป SignIn
+   - role ไม่ใช่ trainer → redirect ไป SignIn
+   - ผ่านทั้งหมด → แสดง children ใน DashboardLayout */
 function TrainerRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, loading } = useAuth();
 
   if (loading) return <div>Loading...</div>;
 
   if (!isAuthenticated) {
-    return <Navigate to="/signin" replace />;
+    return <Navigate to="/signin" replace />; // ยังไม่ล็อกอิน
   }
 
   if (user?.role !== "trainer") {
-    // If logged in but not a trainer, redirect to signin for now
-    return <Navigate to="/signin" replace />;
+    return <Navigate to="/signin" replace />; // ไม่ใช่ trainer
   }
 
+  // ครอบ children ด้วย DashboardLayout (sidebar + bottom nav)
   return <DashboardLayout userType="trainer">{children}</DashboardLayout>;
 }
 

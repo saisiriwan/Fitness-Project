@@ -1,0 +1,4 @@
+{"sessionId":"16d09d","runId":"pre-fix","hypothesisId":"H1","location":"AuthContext.tsx:54","message":"Auth check user avatar data","data":{"avatar_url":"http://localhost:8080/uploads/avatars/34_1771776095.jpg"},"timestamp":1771870795236}
+{"sessionId":"16d09d","runId":"pre-fix","hypothesisId":"H1","location":"AuthContext.tsx:54","message":"Auth check user avatar data","data":{"avatar_url":"http://localhost:8080/uploads/avatars/34_1771776095.jpg"},"timestamp":1771870795256}
+{"sessionId":"16d09d","runId":"pre-fix","hypothesisId":"H1","location":"AuthContext.tsx:54","message":"Auth check user avatar data","data":{"avatar_url":"http://localhost:8080/uploads/avatars/34_1771776095.jpg"},"timestamp":1771870817635}
+{"sessionId":"16d09d","runId":"pre-fix","hypothesisId":"H1","location":"AuthContext.tsx:54","message":"Auth check user avatar data","data":{"avatar_url":"http://localhost:8080/uploads/avatars/34_1771776095.jpg"},"timestamp":1771870817810}

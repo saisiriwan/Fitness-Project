@@ -192,7 +192,6 @@ func main() {
 				// Programs
 				trainerRoutes.GET("/programs", programHandler.GetPrograms)
 				trainerRoutes.POST("/programs", programHandler.CreateProgram)
-				trainerRoutes.GET("/programs/:id", programHandler.GetProgramDetail)
 				trainerRoutes.POST("/programs/:id/exercises", programHandler.AddExercise)
 				trainerRoutes.PUT("/programs/:id", programHandler.UpdateProgram)
 				trainerRoutes.POST("/programs/:id/assign", programHandler.AssignProgram)
@@ -269,6 +268,9 @@ func main() {
 
 			// Exercise Library (Read-only, shared between trainer and trainee)
 			protected.GET("/exercises", exerciseHandler.GetExercises)
+
+			// Shared read access to Program Details
+			protected.GET("/programs/:id", programHandler.GetProgramDetail)
 		}
 	}
 

@@ -44,6 +44,17 @@ import {
 } from "@/components/ui/dialog";
 
 // Constants
+/* ==========================================================================
+   Config: SECTION_FORMATS
+   ใช้สำหรับ: ส่วน Format Selector (ฟอร์มหลัก)
+   หน้าที่: กำหนดตัวเลือกรูปแบบการฝึกที่ trainer สามารถเลือกได้
+   - straight-sets = เซตปกติ (ค่าเริ่มต้น)
+   - circuit = Circuit Training (วนรอบหลายท่า)
+   - superset = Superset (สลับท่า)
+   - amrap = As Many Reps As Possible
+   - emom = Every Minute on the Minute
+   ถ้าเลือก circuit/amrap/emom จะแสดง input เพิ่ม (rounds, workTime, restTime)
+   ========================================================================== */
 const SECTION_FORMATS = [
   { value: "straight-sets", label: "Straight Sets (เซตปกติ)" },
   { value: "circuit", label: "Circuit Training (เซอร์กิต)" },
@@ -52,41 +63,63 @@ const SECTION_FORMATS = [
   { value: "emom", label: "EMOM (Every Minute on Minute)" },
 ];
 
+/* ==========================================================================
+   Main Component: AddSession
+   เป็นหน้าเต็มจอสำหรับสร้าง Workout Session ใหม่
+   เข้าถึงจาก: หน้า Calendar → ปุ่ม "+" หรือ link สร้างนัดหมาย
+   รับ query param ?clientId=X เพื่อ pre-select ลูกค้า
+
+   โครงสร้าง UI ประกอบด้วย 5 ส่วนหลัก:
+     1. Header           → ปุ่มกลับ + ชื่อหน้า + ปุ่ม "บันทึก"
+     2. ฟอร์มหลัก (ScrollArea):
+        - Client & Name  → เลือกลูกค้า + ตั้งชื่อ session
+        - Format Selector → เลือกรูปแบบ (Straight Sets/Circuit/AMRAP/EMOM)
+        - Exercise Builder → สร้างรายการท่า + กำหนด sets
+     3. Date Picker Modal → Popup กำหนดวัน/เวลา (เปิดเมื่อกด "บันทึก")
+     4. Exercise Picker   → Popup เลือกท่าจาก library
+     5. Conflict Dialog   → AlertDialog แจ้งเตือนนัดซ้อนทับ
+   ========================================================================== */
 export default function AddSession() {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate = useNavigate(); // สำหรับนำทางไปหน้าอื่น
+  const location = useLocation(); // สำหรับอ่าน query params (clientId)
 
-  // --- Session State ---
-  const [sessionTitle, setSessionTitle] = useState("");
-  const [selectedClientId, setSelectedClientId] = useState("");
-  const [clients, setClients] = useState<any[]>([]);
+  // State สำหรับ: ส่วน Client & Name (ฟอร์มหลัก)
+  const [sessionTitle, setSessionTitle] = useState(""); // ชื่อ Workout Session
+  const [selectedClientId, setSelectedClientId] = useState(""); // ID ลูกค้าที่เลือก
+  const [clients, setClients] = useState<any[]>([]); // รายชื่อลูกค้าทั้งหมดจาก API
 
-  // --- Builder State ---
-  const [sectionFormat, setSectionFormat] = useState("straight-sets");
-  const [rounds, setRounds] = useState(3);
-  const [workTime, setWorkTime] = useState(30);
-  const [restTime, setRestTime] = useState(15);
+  // State สำหรับ: ส่วน Format Selector (ฟอร์มหลัก)
+  const [sectionFormat, setSectionFormat] = useState("straight-sets"); // รูปแบบการฝึก
+  const [rounds, setRounds] = useState(3); // จำนวนรอบ (ใช้กับ circuit/amrap/emom)
+  const [workTime, setWorkTime] = useState(30); // เวลาทำ (วินาที)
+  const [restTime, setRestTime] = useState(15); // เวลาพัก (วินาที)
 
-  // Exercises State
-  const [exercises, setExercises] = useState<any[]>([]);
-  const [exercisesList, setExercisesList] = useState<any[]>([]); // Added for Picker
-  const [exerciseSearchTerm, setExerciseSearchTerm] = useState(""); // Added for Picker
+  // State สำหรับ: ส่วน Exercise Builder (ฟอร์มหลัก) + Exercise Picker Dialog
+  const [exercises, setExercises] = useState<any[]>([]); // ท่าฝึกที่เพิ่มใน session (พร้อม sets)
+  const [exercisesList, setExercisesList] = useState<any[]>([]); // รายการท่าทั้งหมดจาก API (สำหรับ Exercise Picker)
+  const [exerciseSearchTerm, setExerciseSearchTerm] = useState(""); // คำค้นหาใน Exercise Picker
 
-  // --- UI State ---
-  const [showExercisePicker, setShowExercisePicker] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  // State สำหรับ: เปิด/ปิด Popup ต่างๆ
+  const [showExercisePicker, setShowExercisePicker] = useState(false); // เปิด Exercise Picker Dialog
+  const [showDatePicker, setShowDatePicker] = useState(false); // เปิด Date Picker Modal
 
-  // Schedule State
-  const [scheduleDate, setScheduleDate] = useState("");
-  const [scheduleTime, setScheduleTime] = useState("09:00");
-  const [scheduleEndTime, setScheduleEndTime] = useState("10:00");
+  // State สำหรับ: Date Picker Modal
+  const [scheduleDate, setScheduleDate] = useState(""); // วันที่นัด
+  const [scheduleTime, setScheduleTime] = useState("09:00"); // เวลาเริ่ม
+  const [scheduleEndTime, setScheduleEndTime] = useState("10:00"); // เวลาสิ้นสุด
 
-  // Conflict State
-  const [showConflictDialog, setShowConflictDialog] = useState(false);
-  const [conflictSession, setConflictSession] = useState<any>(null);
-  const [canReplace, setCanReplace] = useState(false);
+  // State สำหรับ: Conflict Dialog (แจ้งเตือนนัดซ้อนทับ)
+  const [showConflictDialog, setShowConflictDialog] = useState(false); // เปิด/ปิด dialog
+  const [conflictSession, setConflictSession] = useState<any>(null); // ข้อมูล session ที่ซ้อนทับ
+  const [canReplace, setCanReplace] = useState(false); // อนุญาตให้แทนที่ได้หรือไม่
 
-  // Fetch Data
+  /* useEffect: fetchData — โหลดข้อมูลเริ่มต้น
+     ใช้สำหรับ: ส่วน Client & Name + Exercise Picker
+     หน้าที่:
+       1. ดึงรายชื่อลูกค้า (GET /clients) → แสดงใน dropdown เลือกลูกค้า
+       2. ดึงรายการท่าออกกำลังกาย (GET /exercises) → ใช้ใน Exercise Picker
+       3. ถ้ามี query param ?clientId=X → pre-select ลูกค้าอัตโนมัติ
+       4. ถ้าไม่มี → เลือกลูกค้าตัวแรกเป็นค่าเริ่มต้น */
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -114,7 +147,10 @@ export default function AddSession() {
     fetchData();
   }, [location.search]);
 
-  // --- Handlers ---
+  /* ฟังก์ชัน: handleSelectExercise
+     ใช้สำหรับ: Exercise Picker Dialog → เมื่อกดเลือกท่าออกกำลังกาย
+     หน้าที่: สร้าง exercise object พร้อม 1 set เริ่มต้น (weight/reps/rpe/distance/duration/pace/side/rest/notes)
+     แล้วเพิ่มเข้าลิสต์ exercises ของ session → ปิด picker + reset คำค้นหา */
   const handleSelectExercise = (exId: string) => {
     const ex = exercisesList.find((e) => e.id === exId);
     if (!ex) return;
@@ -144,6 +180,10 @@ export default function AddSession() {
     setExerciseSearchTerm(""); // Reset search
   };
 
+  /* ฟังก์ชัน: handleAddSet
+     ใช้สำหรับ: Exercise Builder → ปุ่ม "+ เพิ่ม Set" ใต้แต่ละท่า
+     หน้าที่: เพิ่ม set ใหม่ในท่าที่เลือก โดย copy ค่าจาก set ล่าสุด
+     (เพื่อให้ trainer ไม่ต้องกรอกซ้ำ ถ้าค่าเหมือนกัน) */
   const handleAddSet = (exerciseIndex: number) => {
     const updated = [...exercises];
     const currentSets = updated[exerciseIndex].sets;
@@ -165,6 +205,9 @@ export default function AddSession() {
     setExercises(updated);
   };
 
+  /* ฟังก์ชัน: handleRemoveSet
+     ใช้สำหรับ: Exercise Builder → ปุ่ม X ข้างแต่ละ set (แสดงเมื่อ hover)
+     หน้าที่: ลบ set ออก + renumber ลำดับ set ที่เหลือ */
   const handleRemoveSet = (exerciseIndex: number, setIndex: number) => {
     const updated = [...exercises];
     updated[exerciseIndex].sets.splice(setIndex, 1);
@@ -174,12 +217,23 @@ export default function AddSession() {
     setExercises(updated);
   };
 
+  /* ฟังก์ชัน: handleRemoveExercise
+     ใช้สำหรับ: Exercise Builder → ปุ่ม X มุมขวาบนของการ์ดท่า
+     หน้าที่: ลบท่าออกกำลังกายออกจากรายการ */
   const handleRemoveExercise = (exerciseIndex: number) => {
     const updated = [...exercises];
     updated.splice(exerciseIndex, 1);
     setExercises(updated);
   };
 
+  /* ฟังก์ชัน: getSimplifiedCategory
+     ใช้สำหรับ: Exercise Builder → กำหนด input fields ที่แสดงในแต่ละ set
+     หน้าที่: แปลง category จริง (เช่น "Running", "Weight Training") ให้เป็น 4 กลุ่มหลัก
+     แต่ละกลุ่มแสดง input fields ที่แตกต่างกัน:
+       - "cardio"      → ระยะทาง, เวลา, Pace
+       - "hiit"        → Work (วินาที) + notes
+       - "flexibility" → เวลา (วินาที), ครั้ง, ด้าน (L/R)
+       - "weight"      → น้ำหนัก (kg), จำนวนครั้ง, RPE + notes */
   const getSimplifiedCategory = (cat: string = "") => {
     const lower = cat.toLowerCase();
     if (
@@ -208,6 +262,10 @@ export default function AddSession() {
     return "weight";
   };
 
+  /* ฟังก์ชัน: parseDuration
+     ใช้สำหรับ: createSessionLogs (ภายใน)
+     หน้าที่: แปลงค่าเวลาจาก string เป็นวินาที
+     รองรับ 2 รูปแบบ: "5:30" → 330 วินาที, "120" → 120 วินาที */
   const parseDuration = (str: string | number): number => {
     if (!str) return 0;
     const s = str.toString();
@@ -218,6 +276,12 @@ export default function AddSession() {
     return parseInt(s) || 0;
   };
 
+  /* ฟังก์ชัน: createSessionLogs
+     ใช้สำหรับ: handleConfirmSchedule (เรียกหลังสร้าง session)
+     หน้าที่: วนลูปสร้าง exercise logs สำหรับแต่ละท่า + sets
+     ส่ง POST /sessions/:id/logs ไป API พร้อมข้อมูล:
+       - exercise_id, exercise_name, category, order
+       - sets: weight, reps, rpe, distance, duration, pace, rest, notes */
   const createSessionLogs = async (sessionId: number) => {
     for (const [index, ex] of exercises.entries()) {
       const logPayload = {
@@ -248,6 +312,15 @@ export default function AddSession() {
     }
   };
 
+  /* ฟังก์ชัน: handleConfirmSchedule
+     ใช้สำหรับ: Date Picker Modal → ปุ่ม "ยืนยัน"
+     หน้าที่: สร้าง session ใหม่ + exercise logs
+     ขั้นตอน:
+       1. ตรวจสอบข้อมูล (ลูกค้า, ชื่อ, วัน/เวลา)
+       2. POST /sessions สร้าง session
+       3. เรียก createSessionLogs สร้าง exercise logs
+       4. นำทางไปหน้า Session Log (/trainer/sessions/:id/log)
+     ถ้า API ตอบ 409 (ซ้อนทับ) → เปิด Conflict Dialog แทน */
   const handleConfirmSchedule = async () => {
     if (!selectedClientId) return toast.error("กรุณาเลือกลูกค้า");
     if (!sessionTitle) return toast.error("กรุณาระบุชื่อ Workout Session");
@@ -280,7 +353,7 @@ export default function AddSession() {
 
       toast.success("สร้างนัดหมายเรียบร้อยแล้ว");
       setShowDatePicker(false);
-      navigate(`/trainer/sessions/${newSessionId}/log`);
+      navigate(`/trainer/sessions/${newSessionId}/log`, { replace: true });
     } catch (err: any) {
       if (err.response && err.response.status === 409) {
         setConflictSession(err.response.data.conflicting_session);
@@ -293,6 +366,10 @@ export default function AddSession() {
     }
   };
 
+  /* ฟังก์ชัน: handleConfirmReplace
+     ใช้สำหรับ: Conflict Dialog → ปุ่ม "แทนที่"
+     หน้าที่: ลบ session เดิมที่ซ้อนทับ (DELETE /sessions/:id)
+     แล้วเรียก handleConfirmSchedule อีกครั้งเพื่อสร้าง session ใหม่ */
   const handleConfirmReplace = async () => {
     if (!conflictSession) return;
     try {
@@ -306,13 +383,27 @@ export default function AddSession() {
     }
   };
 
+  /* Derived: filteredExercises
+     ใช้สำหรับ: Exercise Picker Dialog
+     หน้าที่: กรองรายการท่าจาก exercisesList ตามคำค้นหา exerciseSearchTerm */
   const filteredExercises = exercisesList.filter((ex) =>
     ex.name.toLowerCase().includes(exerciseSearchTerm.toLowerCase()),
   );
 
+  /* ===================================================================
+     JSX Return — โครงสร้าง UI หลักมี 5 ส่วน:
+     1. Header           → ปุ่มกลับ (ไป Calendar) + ชื่อหน้า + ปุ่ม "บันทึก" (เปิด Date Picker)
+     2. ฟอร์มหลัก (ScrollArea):
+        - Client & Name  → dropdown เลือกลูกค้า + input ชื่อ session
+        - Format Selector → dropdown รูปแบบ + input rounds/work/rest (ถ้าเลือก circuit/amrap/emom)
+        - Exercise Builder → รายการท่าฝึก + sets + ปุ่มเพิ่มท่า/set
+     3. Date Picker Modal → Popup กำหนดวัน/เวลา → กด "ยืนยัน" → handleConfirmSchedule
+     4. Exercise Picker   → Popup ค้นหา/เลือกท่า → handleSelectExercise
+     5. Conflict Dialog   → AlertDialog นัดซ้อนทับ → handleConfirmReplace
+     =================================================================== */
   return (
     <div className="min-h-screen bg-slate-50 font-sans flex flex-col text-navy-900 pb-24">
-      {/* Header */}
+      {/* ===== ส่วน 1: Header — ปุ่มกลับ (Calendar) + ชื่อหน้า + ปุ่ม "บันทึก" (เปิด Date Picker) ===== */}
       <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 h-14 flex items-center justify-between shadow-sm">
         <Button
           variant="ghost"
@@ -335,7 +426,7 @@ export default function AddSession() {
 
       <ScrollArea className="flex-1 w-full max-w-3xl mx-auto p-4 sm:p-6">
         <div className="space-y-4">
-          {/* Top Section: Client & Name */}
+          {/* ===== ส่วน 2a: Client & Name — dropdown เลือกลูกค้า + input ชื่อ session ===== */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>เลือกลูกค้า (Client)</Label>
@@ -368,7 +459,9 @@ export default function AddSession() {
             </div>
           </div>
 
-          {/* Format Selector */}
+          {/* ===== ส่วน 2b: Format Selector — เลือกรูปแบบการฝึก
+             Straight Sets (ค่าเริ่มต้น) / Circuit / Superset / AMRAP / EMOM
+             ถ้าเลือก circuit/amrap/emom → แสดง input เพิ่มเติม: Rounds, Work (วินาที), Rest (วินาที) ===== */}
           <div className="space-y-4 border p-3 rounded-lg bg-slate-50">
             <div className="space-y-2">
               <Label>รูปแบบ (Format)</Label>
@@ -421,7 +514,17 @@ export default function AddSession() {
             )}
           </div>
 
-          {/* Exercise Builder Area */}
+          {/* ===== ส่วน 2c: Exercise Builder — สร้างรายการท่าฝึก + กำหนด sets
+             แต่ละท่าแสดง input fields ตาม category (getSimplifiedCategory):
+               - weight:      น้ำหนัก (kg), ครั้ง, RPE, พัก (วินาที), หมายเหตุ
+               - cardio:      ระยะทาง, เวลา, Pace, พัก (วินาที)
+               - hiit:        Work (วินาที), พัก (วินาที), หมายเหตุ
+               - flexibility:  เวลา (วินาที), ครั้ง, ด้าน (L/R), พัก (วินาที)
+             ทุก category แสดง "พัก (วินาที)" เสมอ
+             ปุ่ม "เพิ่มท่า" → เปิด Exercise Picker
+             ปุ่ม "+ เพิ่ม Set" → เรียก handleAddSet
+             ปุ่ม X ลบท่า → handleRemoveExercise
+             ปุ่ม X ลบ set → handleRemoveSet ===== */}
           <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
             <div className="flex justify-between items-center">
               <Label>ท่าฝึกใน Section ({exercises.length})</Label>
@@ -476,9 +579,11 @@ export default function AddSession() {
                             </Button>
                           </div>
 
-                          {/* INPUTS GRID */}
+                          {/* INPUTS GRID — แสดง input fields ตาม category ของท่า
+                             ใช้ getSimplifiedCategory() แปลง category เป็น 4 กลุ่ม
+                             แต่ละกลุ่มแสดง input fields ที่แตกต่างกัน */}
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {/* Case 1: Cardio */}
+                            {/* Case 1: Cardio — แสดง: ระยะทาง, เวลา, Pace */}
                             {simpleCategory === "cardio" && (
                               <>
                                 <div className="space-y-1">
@@ -530,7 +635,7 @@ export default function AddSession() {
                               </>
                             )}
 
-                            {/* Case 2: HIIT */}
+                            {/* Case 2: HIIT — แสดง: Work (วินาที) เท่านั้น */}
                             {simpleCategory === "hiit" && (
                               <div className="space-y-1">
                                 <span className="text-[10px] text-muted-foreground font-medium uppercase ml-1">
@@ -549,7 +654,7 @@ export default function AddSession() {
                               </div>
                             )}
 
-                            {/* Case 3: Flexibility */}
+                            {/* Case 3: Flexibility — แสดง: เวลา (วินาที), ครั้ง, ด้าน (L/R) */}
                             {simpleCategory === "flexibility" && (
                               <>
                                 <div className="space-y-1">
@@ -601,7 +706,7 @@ export default function AddSession() {
                               </>
                             )}
 
-                            {/* Case 4: Weight (Default) */}
+                            {/* Case 4: Weight (ค่าเริ่มต้น) — แสดง: น้ำหนัก (kg), จำนวนครั้ง, RPE */}
                             {simpleCategory === "weight" && (
                               <>
                                 <div className="space-y-1">
@@ -654,7 +759,7 @@ export default function AddSession() {
                               </>
                             )}
 
-                            {/* Always show Rest */}
+                            {/* พักระหว่าง set (แสดงเสมอทุก category) */}
                             <div className="space-y-1">
                               <span className="text-[10px] text-muted-foreground font-medium uppercase ml-1">
                                 พัก (วิ)
@@ -677,7 +782,7 @@ export default function AddSession() {
                             </div>
                           </div>
 
-                          {/* Notes Field */}
+                          {/* Notes — แสดงเฉพาะท่า weight + hiit (สำหรับจด tempo, technique) */}
                           {(simpleCategory === "weight" ||
                             simpleCategory === "hiit") && (
                             <div>
@@ -714,7 +819,11 @@ export default function AddSession() {
         </div>
       </ScrollArea>
 
-      {/* Date Picker Modal */}
+      {/* ===== ส่วน 3: Date Picker Modal — Popup กำหนดวัน/เวลานัดหมาย
+         เปิดจาก: กดปุ่ม "บันทึก" ใน Header
+         มี input: วันที่, เวลาเริ่ม, เวลาสิ้นสุด
+         ปุ่ม "ยืนยัน" → เรียก handleConfirmSchedule (สร้าง session + logs → ไปหน้า Log)
+         ปุ่ม "ยกเลิก" → ปิด popup ===== */}
       {showDatePicker && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
           <Card className="w-full max-w-md p-6 space-y-4">
@@ -760,7 +869,10 @@ export default function AddSession() {
         </div>
       )}
 
-      {/* NEW SIMPLE EXERCISE PICKER */}
+      {/* ===== ส่วน 4: Exercise Picker Dialog — Popup ค้นหาและเลือกท่าออกกำลังกาย
+         เปิดจาก: ปุ่ม "เพิ่มท่า" ใน Exercise Builder
+         มี Search input สำหรับค้นหาจาก exercisesList
+         กดเลือกท่า → เรียก handleSelectExercise → เพิ่มท่าเข้า exercises list ===== */}
       <Dialog open={showExercisePicker} onOpenChange={setShowExercisePicker}>
         <DialogContent>
           <DialogHeader>
@@ -784,7 +896,13 @@ export default function AddSession() {
                 >
                   <span>{ex.name}</span>
                   <Badge variant="outline" className="text-[10px]">
-                    {ex.category}
+                    {ex.category === "weight-training"
+                      ? "Weight Training"
+                      : ex.category === "cardio"
+                        ? "Cardio"
+                        : ex.category === "flexibility"
+                          ? "Flexibility"
+                          : ex.category}
                   </Badge>
                 </div>
               ))}
@@ -793,7 +911,11 @@ export default function AddSession() {
         </DialogContent>
       </Dialog>
 
-      {/* Conflict Dialog */}
+      {/* ===== ส่วน 5: Conflict Dialog — AlertDialog แจ้งเตือนนัดหมายซ้อนทับ
+         เปิดอัตโนมัติ: เมื่อ API ตอบ 409 (conflict) ใน handleConfirmSchedule
+         แสดงข้อมูล session ที่ซ้อนทับ (ชื่อ + เวลา)
+         ถ้า canReplace = true → แสดงปุ่ม "แทนที่" → เรียก handleConfirmReplace
+         ถ้า canReplace = false → แสดงแค่ "ยกเลิก" (ไม่สามารถแทนที่ได้) ===== */}
       <AlertDialog
         open={showConflictDialog}
         onOpenChange={setShowConflictDialog}

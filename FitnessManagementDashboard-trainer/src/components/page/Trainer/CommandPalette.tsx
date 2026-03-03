@@ -74,9 +74,13 @@ interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/* Component: CommandPalette
+   ใช้สำหรับ: ปุ่ม Ctrl+K หรือ command menu
+   หน้าที่: แสดงเมนูค้นหา (นำทาง + การดำเนินการ) */
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate();
 
+  /* ฟังก์ชัน: handleSelect — ปิด dialog + เรียก callback (เช่น navigate) */
   const handleSelect = (callback: () => void) => {
     onOpenChange(false);
     callback();

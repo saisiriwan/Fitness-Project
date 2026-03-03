@@ -1,5 +1,14 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, BookOpen, Trash2, Pencil } from "lucide-react";
+import {
+  Search,
+  Plus,
+  BookOpen,
+  Trash2,
+  Pencil,
+  MoreHorizontal,
+  Dumbbell,
+  Eye,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,11 +35,30 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -73,6 +101,12 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState<number | null>(null);
 
+  // State สำหรับดึงลบข้อมูล (Delete Confirm)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(
+    null,
+  );
+
   // State สำหรับดูรายละเอียด (View Details)
   const [viewExercise, setViewExercise] = useState<Exercise | null>(null);
 
@@ -88,7 +122,7 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
     caloriesEstimate: "", // Initialize
   });
 
-  // 1. READ: Fetch Exercises
+  /* ฟังก์ชัน: fetchExercises — ดึงท่าออกกำลังกายทั้งหมดจาก API + map โครงสร้างให้ตรงกับ frontend */
   const fetchExercises = async () => {
     try {
       setLoading(true);
@@ -106,7 +140,12 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
         trackingFields: ex.tracking_fields || [],
         caloriesEstimate: ex.calories_estimate || "", // Map from DB
         modality:
-          ex.modality || (ex.category ? ex.category.toLowerCase() : "strength"),
+          ex.modality ||
+          (ex.category === "cardio"
+            ? "cardio"
+            : ex.category === "flexibility"
+              ? "flexibility"
+              : "strength"),
       }));
 
       setExercises(mappedData);
@@ -122,23 +161,33 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
     fetchExercises();
   }, []);
 
-  // 2. CREATE & UPDATE: Handle Submit
+  /* ฟังก์ชัน: handleSubmit — สร้างท่าใหม่ (POST) หรือแก้ไขท่าเดิม (PUT) */
   const handleSubmit = async (data: ExerciseFormData) => {
     if (!data.name) {
       toast.error("กรุณากรอกชื่อท่า");
       return;
     }
 
-    // Payload ต้องใช้ key 'muscle_groups' ให้ตรงกับ JSON tag ใน Go struct
+    // Map modality → exercise category (weight-training/cardio/flexibility)
+    const trackingType = data.category; // form "category" = tracking_type
+    const deriveCategory = (modality: string): string => {
+      const m = modality.toLowerCase();
+      if (m.includes("strength") || m.includes("เสริมแรง"))
+        return "weight-training";
+      if (m.includes("cardio") || m.includes("คาร์ดิโอ")) return "cardio";
+      if (m.includes("flexibility") || m.includes("ยืดหยุ่น"))
+        return "flexibility";
+      return "weight-training"; // default
+    };
+
     const payload = {
       name: data.name,
-      // Usually tracking type in form
-      category: data.category, // Usually tracking type in form
+      category: deriveCategory(data.modality),
       muscle_groups: data.muscleGroups || [],
       movement_pattern: data.movementPattern,
-      modality: data.modality, // Correctly mapped
-      instructions: data.instructions, // Correctly mapped
-      tracking_type: data.category, // Using category as tracking_type based on form logic
+      modality: data.modality,
+      instructions: data.instructions,
+      tracking_type: trackingType,
       tracking_fields: data.fields || [],
       calories_estimate: data.caloriesEstimate || "",
     };
@@ -162,15 +211,8 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
     }
   };
 
-  // 3. DELETE: Handle Delete
+  /* ฟังก์ชัน: handleDeleteExercise — ลบท่าจาก API (DELETE) + ลบออกจาก state */
   const handleDeleteExercise = async (id: number) => {
-    if (
-      !window.confirm(
-        "คำเตือน: การลบท่านี้จะลบออกจากทุกโปรแกรมและประวัติการฝึกทั้งหมด คุณแน่ใจหรือไม่?",
-      )
-    )
-      return;
-
     try {
       await api.delete(`/exercises/${id}`);
       setExercises((prev) => prev.filter((ex) => ex.id !== id));
@@ -181,7 +223,7 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
     }
   };
 
-  // Helper Functions
+  /* ฟังก์ชัน: openAddModal — เปิด modal โหมดเพิ่มท่าใหม่ (reset form) */
   const openAddModal = () => {
     setFormData({
       name: "",
@@ -198,6 +240,7 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
     setShowModal(true);
   };
 
+  /* ฟังก์ชัน: openEditModal — เปิด modal โหมดแก้ไข (pre-fill ข้อมูลเดิม) */
   const openEditModal = (ex: Exercise) => {
     setFormData({
       name: ex.name,
@@ -234,121 +277,68 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
 
   const getModalityBadge = (modality: string = "") => {
     const modalityMap: Record<string, { label: string; color: string }> = {
+      "weight-training": { label: "Weight Training", color: "badge-red" },
       weight_training: { label: "Weight Training", color: "badge-red" },
       strength: { label: "Weight Training", color: "badge-red" },
       cardio: { label: "Cardio", color: "badge-green" },
-      aerobic: { label: "Aerobic", color: "badge-purple" },
       flexibility: { label: "Flexibility", color: "badge-blue" },
-      yoga: { label: "Yoga", color: "badge-blue" },
     };
     const key =
       Object.keys(modalityMap).find((k) =>
         modality.toLowerCase().includes(k),
-      ) || "weight_training";
+      ) || "weight-training";
     return modalityMap[key];
   };
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="flex flex-col gap-6 pb-8 animate-in fade-in duration-500">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <Skeleton className="h-10 w-48 mb-2" />
-            <Skeleton className="h-5 w-64" />
-          </div>
-          <Skeleton className="h-10 w-32" />
-        </div>
-        <Card className="glass-card border-slate-200/60 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <Skeleton className="h-10 flex-1" />
-              <Skeleton className="h-10 w-full md:w-[200px]" />
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <div className="flex gap-4 flex-1 w-full md:w-auto">
+              <Skeleton className="h-10 w-full md:w-[250px]" />
+              <Skeleton className="h-10 w-full md:w-[150px]" />
             </div>
-          </CardContent>
-        </Card>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Card key={i} className="glass-card border-slate-200/60">
-              <CardHeader className="pb-3">
-                <div className="flex justify-between gap-2">
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-6 w-16" />
-                </div>
-                <Skeleton className="h-4 w-1/2 mt-2" />
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <Skeleton className="h-3 w-20 mb-2" />
-                    <div className="flex gap-2">
-                      <Skeleton className="h-5 w-16" />
-                      <Skeleton className="h-5 w-20" />
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <Skeleton className="h-9 flex-1" />
-                    <Skeleton className="h-9 w-9" />
-                    <Skeleton className="h-9 w-9" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
+            <Skeleton className="h-10 w-[120px]" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        </CardContent>
+      </Card>
     );
+  }
 
   return (
-    <div className="flex flex-col gap-6 pb-8 animate-in fade-in duration-500">
-      {/* Header */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 p-8 text-white shadow-2xl">
-        <div className="absolute top-0 right-0 -mt-10 -mr-10 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
-        <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-64 w-64 rounded-full bg-orange-500/10 blur-3xl" />
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight text-white">
-              คลังท่าออกกำลังกาย
-            </h1>
-            <p className="text-slate-300 max-w-lg text-sm leading-relaxed">
-              จัดการและค้นหาท่าออกกำลังกายทั้งหมดของคุณได้ที่นี่
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={openAddModal}
-              className="bg-white text-navy-900 hover:bg-slate-100 shadow-lg border-0 font-semibold h-12 px-6 rounded-full transition-transform active:scale-95"
-            >
-              <Plus className="h-5 w-5 mr-2 text-orange-600" /> เพิ่มท่าใหม่
-            </Button>
-          </div>
+    <Card className="animate-in fade-in duration-500 rounded-2xl border-slate-200">
+      <CardHeader className="pb-4 border-b border-slate-100/60 mb-4 bg-slate-50/50 rounded-t-2xl">
+        <div className="flex flex-col gap-1 mb-4">
+          <CardTitle className="text-2xl font-bold text-navy-900">
+            คลังท่าออกกำลังกาย
+          </CardTitle>
+          <CardDescription className="text-slate-500">
+            จัดการ ค้นหา และแก้ไขท่าออกกำลังกายในระบบ
+          </CardDescription>
         </div>
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+          <div className="relative flex-1 w-full sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
+            <Input
+              placeholder="ค้นหาชื่อท่าออกกำลังกาย..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 mr-2 h-10 w-full rounded-xl border-slate-200"
+            />
+          </div>
 
-        {/* Unified Add/Edit Modal */}
-        <ExerciseForm
-          isOpen={showModal}
-          onSave={handleSubmit}
-          onClose={() => setShowModal(false)}
-          initialData={isEditing ? formData : undefined}
-        />
-      </div>
-
-      {/* Stats & Filters */}
-      <Card className="border-slate-100 bg-white shadow-sm rounded-2xl">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="ค้นหาชื่อท่า..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 h-10 rounded-xl border-slate-200 focus:border-orange-500 focus:ring-orange-500"
-              />
-            </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mr-auto">
             <Select value={modalityFilter} onValueChange={setModalityFilter}>
-              <SelectTrigger className="w-full md:w-[200px] h-10 rounded-xl border-slate-200">
+              <SelectTrigger className="w-full sm:w-[160px] h-10 rounded-xl border-slate-200">
                 <SelectValue placeholder="ประเภท" />
               </SelectTrigger>
               <SelectContent>
@@ -359,164 +349,229 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
               </SelectContent>
             </Select>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Exercise Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredExercises.length === 0 ? (
-          <div className="col-span-full flex flex-col items-center justify-center py-16 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-            <div className="bg-white p-4 rounded-full shadow-sm mb-4 ring-1 ring-slate-100">
-              <BookOpen className="h-8 w-8 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-medium text-navy-900">
-              ไม่พบท่าออกกำลังกาย
-            </h3>
-            <p className="text-slate-500 max-w-sm mt-1">
-              ลองปรับคำค้นหาหรือตัวกรอง หรือเพิ่มท่าออกกำลังกายใหม่
-            </p>
+          <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+            <Button
+              onClick={openAddModal}
+              className="flex items-center gap-2 whitespace-nowrap bg-navy-900 text-white hover:bg-navy-800 rounded-xl h-10 px-4"
+            >
+              <Plus className="h-4 w-4" />
+              เพิ่มท่าใหม่
+            </Button>
           </div>
-        ) : (
-          filteredExercises.map((exercise) => {
-            const modalityBadge = getModalityBadge(exercise.modality);
-            return (
-              <Card
-                key={exercise.id}
-                className={`border-slate-100 bg-white shadow-sm hover:shadow-xl transition-all duration-300 rounded-2xl group hover:-translate-y-1 ${
-                  !onSelect ? "cursor-pointer" : ""
-                }`}
-                onClick={() => {
-                  if (!onSelect) setViewExercise(exercise);
-                }}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-lg font-semibold text-navy-800 leading-tight">
-                      {exercise.name}
-                    </CardTitle>
-                    <Badge
-                      variant="secondary"
-                      className={`${
-                        modalityBadge.color === "badge-red"
-                          ? "bg-red-100 text-red-700"
-                          : modalityBadge.color === "badge-green"
-                            ? "bg-green-100 text-green-700"
-                            : modalityBadge.color === "badge-blue"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-purple-100 text-purple-700"
-                      } border-0 font-medium whitespace-nowrap`}
-                    >
-                      {modalityBadge.label}
-                    </Badge>
-                  </div>
-                  <CardDescription className="text-slate-500 font-medium">
-                    {exercise.movementPattern || "ไม่ระบุรูปแบบ"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
-                        กล้ามเนื้อที่ใช้
+        </div>
+
+        <ExerciseForm
+          isOpen={showModal}
+          onSave={handleSubmit}
+          onClose={() => setShowModal(false)}
+          initialData={isEditing ? formData : undefined}
+        />
+      </CardHeader>
+
+      <CardContent>
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <Table>
+            <TableHeader className="bg-slate-50/80">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="font-semibold text-slate-600">
+                  ท่าออกกำลังกาย
+                </TableHead>
+                <TableHead className="font-semibold text-slate-600">
+                  รูปแบบ (Pattern)
+                </TableHead>
+                <TableHead className="font-semibold text-slate-600">
+                  กล้ามเนื้อที่ใช้
+                </TableHead>
+                <TableHead className="font-semibold text-slate-600">
+                  ประเภท
+                </TableHead>
+                <TableHead className="text-right"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredExercises.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={5}
+                    className="text-center py-12 text-muted-foreground"
+                  >
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <div className="p-3 bg-slate-100 rounded-full">
+                        <BookOpen className="h-6 w-6 text-slate-400" />
+                      </div>
+                      <p>
+                        {searchTerm || modalityFilter !== "all"
+                          ? "ไม่พบข้อมูลที่ค้นหา"
+                          : 'ยังไม่มีท่าออกกำลังกาย คลิก "เพิ่มท่าใหม่" เพื่อเริ่มต้น'}
                       </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(exercise.muscleGroups || []).length > 0 ? (
-                          (exercise.muscleGroups || []).map((group) => (
-                            <Badge
-                              key={group}
-                              variant="outline"
-                              className="bg-white/50 text-slate-600 border-slate-200"
-                            >
-                              {group}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="text-sm text-slate-400 italic">
-                            -
-                          </span>
-                        )}
-                      </div>
                     </div>
-
-                    {exercise.instructions && (
-                      <div>
-                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">
-                          คำแนะนำ
-                        </p>
-                        <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
-                          {exercise.instructions}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2 pt-2 mt-auto">
-                      <Button
-                        size="sm"
-                        variant={onSelect ? "default" : "outline"}
-                        className={
-                          onSelect
-                            ? "flex-1 bg-navy-900 text-white hover:bg-navy-800"
-                            : "flex-1 bg-white/50 hover:bg-white hover:text-primary hover:border-primary/30 transition-colors"
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredExercises.map((exercise) => {
+                  const modalityBadge = getModalityBadge(exercise.modality);
+                  return (
+                    <TableRow
+                      key={exercise.id}
+                      className={`hover:bg-slate-50 transition-colors ${onSelect ? "cursor-pointer" : "cursor-pointer"}`}
+                      onClick={() => {
+                        if (onSelect) {
+                          onSelect(exercise);
+                        } else {
+                          openEditModal(exercise);
                         }
-                        onClick={(e) => {
-                          e.stopPropagation(); // Prevent card click
-                          if (onSelect) {
-                            onSelect(exercise);
-                          } else {
-                            setViewExercise(exercise);
-                          }
-                        }}
-                      >
-                        {onSelect ? "เลือกท่านี้" : "ดูรายละเอียด"}
-                      </Button>
+                      }}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10 flex items-center justify-center bg-orange-50 ring-1 ring-orange-100">
+                            <AvatarFallback className="bg-transparent text-orange-600">
+                              <Dumbbell className="h-5 w-5" />
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-semibold text-navy-900 leading-tight">
+                              {exercise.name}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {exercise.category === "weight-training"
+                                ? "Weight Training"
+                                : exercise.category === "cardio"
+                                  ? "Cardio"
+                                  : exercise.category === "flexibility"
+                                    ? "Flexibility"
+                                    : exercise.category || "General"}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm font-medium text-slate-600">
+                          {exercise.movementPattern || "-"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(exercise.muscleGroups || []).length > 0 ? (
+                            (exercise.muscleGroups || [])
+                              .slice(0, 2)
+                              .map((group) => (
+                                <Badge
+                                  key={group}
+                                  variant="outline"
+                                  className="text-xs font-medium text-slate-600 bg-white border-slate-200"
+                                >
+                                  {group}
+                                </Badge>
+                              ))
+                          ) : (
+                            <span className="text-sm text-slate-400">-</span>
+                          )}
+                          {(exercise.muscleGroups || []).length > 2 && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs font-medium text-slate-500 bg-slate-50 border-slate-200"
+                            >
+                              +{(exercise.muscleGroups || []).length - 2}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="secondary"
+                          className={`${
+                            modalityBadge.color === "badge-red"
+                              ? "bg-red-50 text-red-700 hover:bg-red-100"
+                              : modalityBadge.color === "badge-green"
+                                ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                : modalityBadge.color === "badge-blue"
+                                  ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                                  : "bg-purple-50 text-purple-700 hover:bg-purple-100"
+                          } border-0`}
+                        >
+                          {modalityBadge.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-slate-400 hover:text-navy-900 hover:bg-slate-100"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem
+                              className="gap-2 cursor-pointer text-blue-600 focus:text-blue-700 focus:bg-blue-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditModal(exercise);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                              <span className="font-medium">แก้ไขข้อมูล</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="gap-2 cursor-pointer text-red-600 focus:text-red-700 focus:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExerciseToDelete(exercise);
+                                setDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="font-medium">ลบท่า</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
 
-                      <div className="flex items-center gap-1 border-l pl-2 ml-1 border-slate-200">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-slate-400 hover:text-orange-500 hover:bg-orange-50"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openEditModal(exercise);
-                                }}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>แก้ไข</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteExercise(exercise.id);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>ลบ</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
-      </div>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl">ยืนยันการลบ</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-500 text-base">
+              คุณแน่ใจหรือไม่ว่าต้องการลบ{" "}
+              <span className="font-semibold text-navy-900">
+                "{exerciseToDelete?.name}"
+              </span>
+              ? การดำเนินการนี้ไม่สามารถยกเลิกได้
+              และอาจส่งผลต่อโปรแกรมที่มีท่านี้อยู่
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel className="font-medium rounded-xl">
+              ยกเลิก
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl"
+              onClick={() => {
+                if (exerciseToDelete) {
+                  handleDeleteExercise(exerciseToDelete.id);
+                  setDeleteDialogOpen(false);
+                  setExerciseToDelete(null);
+                }
+              }}
+            >
+              ลบท่าออกกำลังกาย
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* View Details Dialog */}
       <Dialog
@@ -609,6 +664,6 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </Card>
   );
 }

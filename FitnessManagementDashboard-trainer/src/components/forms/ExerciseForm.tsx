@@ -1,46 +1,43 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
+import api from "@/lib/api";
 
 const MAX_MUSCLE_GROUPS = 3;
 
-const MODALITIES = [
-  "เสริมแรง (Strength)",
-  "คาร์ดิโอ (Cardio)",
-  "ยืดหยุ่น (Flexibility)",
-];
+const MODALITIES = ["Strength", "Cardio", "Flexibility"];
 
 const MUSCLE_GROUPS = [
-  "หน้าแขน (Biceps)",
-  "อก (Chest)",
-  "แกนกลาง (Core)",
-  "ท่อนแขน (Forearms)",
-  "ทั่วร่างกาย (Full Body)",
-  "ก้น (Glutes)",
-  "ต้นขาหลัง (Hamstrings)",
-  "สะโพกและขาหนีบ (Hip & Groin)",
-  "หลังล่าง (Lower Back)",
-  "ช่วงล่าง (Lower Body)",
-  "น่อง/ขาท่อนล่าง (Lower Leg)",
-  "หลังส่วนกลาง (Mid Back)",
-  "ต้นขาหน้า (Quads)",
-  "ไหล่ (Shoulders)",
-  "หลังแขน (Triceps)",
-  "หลังส่วนบนและคอ (Upper Back & Neck)",
-  "ร่างกายท่อนบน (Upper Body)",
+  "Biceps",
+  "Chest",
+  "Core",
+  "Forearms",
+  "Full Body",
+  "Glutes",
+  "Hamstrings",
+  "Hip & Groin",
+  "Lower Back",
+  "Lower Body",
+  "Lower Leg",
+  "Mid Back",
+  "Quads",
+  "Shoulders",
+  "Triceps",
+  "Upper Back & Neck",
+  "Upper Body",
 ];
 
 const MOVEMENT_PATTERNS = [
-  "การแบก / การเดิน (Carry / Gait)",
-  "การเกร็งแกนกลาง (Core Bracing)",
-  "การพับ/เหยียดตัว (Core Flexion / Extension)",
-  "การบิดลำตัว (Core Rotation)",
-  "การเคลื่อนที่ (Locomotion)",
-  "พับสะโพก (Lower Body Hinge)",
-  "ดันช่วงล่าง (Lower Body Push)",
-  "ดึงแนวราบ (Upper Body Horizontal Pull)",
-  "ดันแนวราบ (Upper Body Horizontal Push)",
-  "ดึงแนวดิ่ง (Upper Body Vertical Pull)",
-  "ดันแนวดิ่ง (Upper Body Vertical Push)",
+  "Carry / Gait",
+  "Core Bracing",
+  "Core Flexion / Extension",
+  "Core Rotation",
+  "Locomotion",
+  "Lower Body Hinge",
+  "Lower Body Push",
+  "Upper Body Horizontal Pull",
+  "Upper Body Horizontal Push",
+  "Upper Body Vertical Pull",
+  "Upper Body Vertical Push",
 ];
 
 const FIELDS = [
@@ -63,12 +60,12 @@ const FIELDS = [
 ];
 
 const CATEGORY_DEFAULT_FIELDS: Record<string, string[]> = {
-  strength: ["Weight (น้ำหนัก)", "Reps (จำนวนครั้ง)"],
-  bodyweight: ["Reps (จำนวนครั้ง)"],
-  timed: ["Time (เวลา)"],
-  distance_long: ["Distance-Long (ระยะทางไกล)", "Time (เวลา)"],
-  distance_short: ["Distance-Short (ระยะทางสั้น)", "Time (เวลา)"],
-  flexibility: ["Time (เวลา)"],
+  strength: ["Weight", "Reps"],
+  bodyweight: ["Reps"],
+  timed: ["Time"],
+  distance_long: ["Distance-Long", "Time"],
+  distance_short: ["Distance-Short", "Time"],
+  flexibility: ["Time"],
 };
 
 // ============================================================================
@@ -545,6 +542,27 @@ export default function ExerciseForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
+  // State สำหรับเก็บชื่อท่าออกกำลังกายทั้งหมดที่มีในระบบ
+  const [existingNames, setExistingNames] = useState<string[]>([]);
+
+  // Fetch existing exercises on mount to check for duplicates
+  useEffect(() => {
+    const fetchExistingNames = async () => {
+      try {
+        const res = await api.get("/exercises");
+        if (res.data) {
+          const names = res.data.map((ex: any) => ex.name.toLowerCase());
+          setExistingNames(names);
+        }
+      } catch (err) {
+        console.error("Failed to load existing exercises", err);
+      }
+    };
+    if (isOpen) {
+      fetchExistingNames();
+    }
+  }, [isOpen]);
+
   // Initialize form data
   useEffect(() => {
     if (initialData) {
@@ -558,8 +576,20 @@ export default function ExerciseForm({
         instructions: initialData.instructions || "",
         caloriesEstimate: initialData.caloriesEstimate || "",
       });
+    } else {
+      // Reset form when adding a new exercise
+      setFormData({
+        name: "",
+        modality: "",
+        muscleGroups: [],
+        movementPattern: "",
+        category: "",
+        fields: [],
+        instructions: "",
+        caloriesEstimate: "",
+      });
     }
-  }, [initialData]);
+  }, [initialData, isOpen]);
 
   // Track dirty state
   useEffect(() => {
@@ -584,16 +614,36 @@ export default function ExerciseForm({
   }, [isOpen]);
 
   // Validation
-  const validateForm = (): { isValid: boolean; errors: string[] } => {
+  const validateForm = (): {
+    isValid: boolean;
+    errors: string[];
+    isDuplicate: boolean;
+  } => {
     const errors: string[] = [];
-    if (!formData.name.trim()) errors.push("กรุณากรอกชื่อท่าออกกำลังกาย");
+    let isDuplicate = false;
+
+    // Check for duplicate names (case-insensitive)
+    if (!formData.name.trim()) {
+      errors.push("กรุณากรอกชื่อท่าออกกำลังกาย");
+    } else {
+      const normalizedInput = formData.name.trim().toLowerCase();
+      const duplicateExists = existingNames.includes(normalizedInput);
+
+      // ถ้าเป็นโหมด "แก้ไข" (มี initialData) และชื่อไม่ได้ถูกเปลี่ยน ก็ไม่ต้องกัน duplicate
+      const isEditingUnchangedName =
+        initialData?.name && initialData.name.toLowerCase() === normalizedInput;
+
+      if (duplicateExists && !isEditingUnchangedName) {
+        isDuplicate = true;
+      }
+    }
     if (!formData.modality) errors.push("กรุณาเลือกประเภทการฝึก");
     if (!formData.muscleGroups || formData.muscleGroups.length === 0)
       errors.push("กรุณาเลือกกลุ่มกล้ามเนื้ออย่างน้อย 1 กลุ่ม");
     if (!formData.category) errors.push("กรุณาเลือกหมวดหมู่การติดตามผล");
     if (formData.fields.length === 0)
       errors.push("กรุณาเลือกตัวชี้วัดอย่างน้อย 1 รายการ");
-    return { isValid: errors.length === 0, errors };
+    return { isValid: errors.length === 0, errors, isDuplicate };
   };
 
   const handleSelect = (field: string, value: any) => {
@@ -602,8 +652,13 @@ export default function ExerciseForm({
     // Multi-select muscle groups (max 3)
     if (field === "muscleGroups") {
       let currentMuscles = [...formData.muscleGroups];
-      if (currentMuscles.includes(value)) {
-        currentMuscles = currentMuscles.filter((m) => m !== value);
+      // Normalize comparison: check case-insensitive match
+      const matchIndex = currentMuscles.findIndex(
+        (m) => m.toLowerCase() === value.toLowerCase(),
+      );
+      if (matchIndex !== -1) {
+        // Remove if already selected
+        currentMuscles.splice(matchIndex, 1);
       } else {
         if (currentMuscles.length < MAX_MUSCLE_GROUPS) {
           currentMuscles.push(value);
@@ -659,10 +714,16 @@ export default function ExerciseForm({
       return;
     }
 
+    if (validation.isDuplicate) {
+      const confirmed = window.confirm(
+        "มีชื่อท่าออกกำลังกายนี้ในระบบแล้ว คุณต้องการบันทึกเป็นท่าใหม่หรือไม่?",
+      );
+      if (!confirmed) return;
+    }
+
     setIsSubmitting(true);
     try {
       await onSave(formData);
-      toast.success("บันทึกข้อมูลเรียบร้อย");
       if (onClose) onClose();
     } catch (error) {
       toast.error("เกิดข้อผิดพลาดในการบันทึก");
@@ -927,9 +988,16 @@ export default function ExerciseForm({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-                  <h3 className="text-base font-bold text-navy-900 tracking-tight">
-                    {getSelectorTitle(activeSelector)}
-                  </h3>
+                  <div>
+                    <h3 className="text-base font-bold text-navy-900 tracking-tight">
+                      {getSelectorTitle(activeSelector)}
+                    </h3>
+                    {activeSelector === "muscle" && (
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        เลือกได้สูงสุด {MAX_MUSCLE_GROUPS} กลุ่ม
+                      </p>
+                    )}
+                  </div>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -950,15 +1018,71 @@ export default function ExerciseForm({
                         onClick={() => handleSelect("modality", item)}
                       />
                     ))}
-                  {activeSelector === "muscle" &&
-                    MUSCLE_GROUPS.map((item) => (
-                      <SelectItem
-                        key={item}
-                        label={item}
-                        isSelected={formData.muscleGroups?.includes(item)}
-                        onClick={() => handleSelect("muscleGroups", item)}
-                      />
-                    ))}
+                  {activeSelector === "muscle" && (
+                    <>
+                      {/* Show currently selected muscle groups at top */}
+                      {formData.muscleGroups.length > 0 && (
+                        <div className="px-4 pb-2 mb-2 border-b border-slate-100">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                              ที่เลือกไว้ ({formData.muscleGroups.length}/
+                              {MAX_MUSCLE_GROUPS})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  muscleGroups: [],
+                                }))
+                              }
+                              className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
+                            >
+                              ล้างทั้งหมด
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {formData.muscleGroups.map((group) => (
+                              <span
+                                key={group}
+                                onClick={() =>
+                                  handleSelect("muscleGroups", group)
+                                }
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-xs font-semibold border border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors"
+                              >
+                                {group}
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M18 6 6 18" />
+                                  <path d="m6 6 12 12" />
+                                </svg>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Show all muscle group options */}
+                      {MUSCLE_GROUPS.map((item) => (
+                        <SelectItem
+                          key={item}
+                          label={item}
+                          isSelected={formData.muscleGroups.some(
+                            (g) => g.toLowerCase() === item.toLowerCase(),
+                          )}
+                          onClick={() => handleSelect("muscleGroups", item)}
+                        />
+                      ))}
+                    </>
+                  )}
                   {activeSelector === "movement" &&
                     MOVEMENT_PATTERNS.map((item) => (
                       <SelectItem
@@ -991,6 +1115,18 @@ export default function ExerciseForm({
                       ),
                     )}
                 </div>
+                {/* Confirm button for muscle selector */}
+                {activeSelector === "muscle" && (
+                  <div className="flex-none px-6 py-4 border-t border-slate-100 bg-white">
+                    <Button
+                      variant="default"
+                      onClick={() => setActiveSelector(null)}
+                      className="w-full h-11 rounded-xl font-semibold bg-navy-900 text-white hover:bg-navy-800"
+                    >
+                      ยืนยัน ({formData.muscleGroups.length} กลุ่ม)
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           )}

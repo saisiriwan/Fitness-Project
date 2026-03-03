@@ -1,0 +1,317 @@
+# 📋 Test Cases — Fitness Management Dashboard (Trainer)
+
+เอกสารรวม Test Case ของระบบ Trainer Dashboard แบ่งเป็นชุดตามโมดูลหลัก (Module-based Test Suites)
+
+---
+
+## สารบัญ (Table of Contents)
+
+| ชุดที่ | Module | จำนวน TC |
+|--------|--------|----------|
+| 1 | [Authentication & Authorization](#1-authentication--authorization) | 12 |
+| 2 | [Dashboard (หน้าหลัก)](#2-dashboard-หน้าหลัก) | 10 |
+| 3 | [Clients Management (จัดการลูกค้า)](#3-clients-management-จัดการลูกค้า) | 14 |
+| 4 | [Client Profile (โปรไฟล์ลูกค้า)](#4-client-profile-โปรไฟล์ลูกค้า) | 12 |
+| 5 | [Client Schedule (ตารางเวลา)](#5-client-schedule-ตารางเวลาลูกค้า) | 10 |
+| 6 | [Client Progress (ความก้าวหน้า)](#6-client-progress-ความก้าวหน้าลูกค้า) | 10 |
+| 7 | [Client Notes (บันทึก)](#7-client-notes-บันทึกลูกค้า) | 8 |
+| 8 | [Calendar (ปฏิทิน)](#8-calendar-ปฏิทิน) | 12 |
+| 9 | [Session Log (บันทึก Session)](#9-session-log-บันทึก-session) | 14 |
+| 10 | [Program Builder (สร้างโปรแกรม)](#10-program-builder-สร้างโปรแกรม) | 16 |
+| 11 | [Exercise Library (คลังท่าออกกำลังกาย)](#11-exercise-library-คลังท่าออกกำลังกาย) | 10 |
+| 12 | [Reports (รายงาน)](#12-reports-รายงาน) | 8 |
+| 13 | [Settings (ตั้งค่า)](#13-settings-ตั้งค่า) | 8 |
+| 14 | [Layout & Navigation (โครงสร้างหน้า)](#14-layout--navigation) | 6 |
+| **รวม** | | **150** |
+
+---
+
+## 1. Authentication & Authorization
+
+> **ไฟล์ที่เกี่ยวข้อง:** [SignIn.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/SignIn.tsx), [AuthContext.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/AuthContext.tsx), [App.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/App.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| AUTH-01 | Login ด้วย Email + Password สำเร็จ | มี Account Trainer ในระบบ | 1. ไปที่ `/signin` 2. กรอก Email/Password ถูกต้อง 3. กด "Sign In" | Redirect ไป `/trainer/dashboard`, Toast แสดง "Login successful" | 🔴 High |
+| AUTH-02 | Login ด้วย Email/Password ผิด | - | 1. ไปที่ `/signin` 2. กรอก Email/Password ผิด 3. กด "Sign In" | แสดง Toast error "Invalid credentials", ไม่ redirect | 🔴 High |
+| AUTH-03 | Login โดยไม่กรอกข้อมูล | - | 1. ไปที่ `/signin` 2. ปล่อยฟอร์มว่าง 3. กด "Sign In" | แสดง validation error, ไม่ส่ง request | 🟡 Medium |
+| AUTH-04 | Login ด้วย Google | - | 1. ไปที่ `/signin` 2. กดปุ่ม "Continue with Google" | เปิด Google OAuth flow, redirect กลับหลัง login สำเร็จ | 🔴 High |
+| AUTH-05 | Remember Me checkbox | มี Account ในระบบ | 1. Login สำเร็จ + ✅ Remember Me 2. ปิดแล้วเปิด browser | Session ยังคงอยู่, ไม่ต้อง login ใหม่ | 🟡 Medium |
+| AUTH-06 | Logout สำเร็จ | Logged in อยู่ | 1. ไปที่ Settings 2. กด "Logout" | Redirect ไป `/signin`, ล้าง session/auth state | 🔴 High |
+| AUTH-07 | Route Guard — เข้าหน้า Trainer โดยไม่ login | ไม่ได้ login | 1. เข้า `/trainer/dashboard` โดยตรง | Redirect ไป `/signin` | 🔴 High |
+| AUTH-08 | Route Guard — User ที่ไม่ได้เป็น Trainer | Login ด้วย role = "trainee" | 1. เข้า `/trainer/dashboard` | Redirect ไป `/signin` | 🔴 High |
+| AUTH-09 | Public Route Guard — เข้า Sign In ขณะ login อยู่ | Logged in เป็น Trainer | 1. เข้า `/signin` | Redirect ไป `/trainer/dashboard` | 🟡 Medium |
+| AUTH-10 | Auth State Persistence | Logged in อยู่ | 1. Refresh หน้า (`F5`) | ยังคง login อยู่, ไม่ต้อง login ใหม่ (เรียก `/auth/me` สำเร็จ) | 🔴 High |
+| AUTH-11 | Session หมดอายุ (Token Expired) | Login ไว้นานแล้ว | 1. รอจนกว่า session หมดอายุ 2. กดทำอะไรก็ได้ | Redirect ไป `/signin`, แสดง Toast แจ้งเตือน | 🟡 Medium |
+| AUTH-12 | Loading State ขณะตรวจสอบ Auth | เพิ่งเปิดหน้า | 1. โหลดแอปครั้งแรก | แสดง "Loading..." ขณะ [checkAuthStatus()](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/AuthContext.tsx#36-71) ทำงาน, ไม่กระพริบหน้า | 🟢 Low |
+
+---
+
+## 2. Dashboard (หน้าหลัก)
+
+> **ไฟล์ที่เกี่ยวข้อง:** [Dashboard.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/Dashboard.tsx), [NewClientModal.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/NewClientModal.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| DASH-01 | แสดง Stats สรุป (Total Clients, Active, Monthly Sessions) | มี Client และ Session ในระบบ | 1. เข้า Dashboard | แสดงจำนวน Total Clients, Active Clients, Monthly Sessions ถูกต้อง | 🔴 High |
+| DASH-02 | แสดง Today's Sessions | มี Session วันนี้ | 1. เข้า Dashboard | แสดงรายการ Session วันนี้ พร้อมชื่อ Client, เวลา, สถานะ | 🔴 High |
+| DASH-03 | กด Start Session จาก Dashboard | มี Session วันนี้ status = "scheduled" | 1. เข้า Dashboard 2. กด "Start" ที่ session ใดก็ได้ | Navigate ไป `/trainer/sessions/{id}/log` | 🔴 High |
+| DASH-04 | ไม่มี Session วันนี้ | ไม่มี Session วันนี้ | 1. เข้า Dashboard | แสดงข้อความ Empty State "No sessions today" | 🟡 Medium |
+| DASH-05 | เปิด New Client Modal จาก Dashboard | - | 1. เข้า Dashboard 2. กดปุ่ม "New Client" | เปิด New Client Modal | 🟡 Medium |
+| DASH-06 | สร้าง Client ใหม่จาก Dashboard สำเร็จ | - | 1. กด "New Client" 2. กรอกข้อมูลครบ 3. กด Submit | สร้าง Client สำเร็จ, Toast แจ้ง, รายการอัพเดต | 🔴 High |
+| DASH-07 | แสดง Quick Notes | มี Notes ที่เคยบันทึก | 1. เข้า Dashboard | แสดง Quick Notes ล่าสุด | 🟡 Medium |
+| DASH-08 | เพิ่ม Quick Note | - | 1. เข้า Dashboard 2. พิมพ์ Note ใน Quick Note area 3. กด Save | บันทึก Note สำเร็จ, แสดงใน list | 🟡 Medium |
+| DASH-09 | แสดงข้อมูลเมื่อไม่มี Client เลย | ระบบว่างเปล่า | 1. เข้า Dashboard | แสดง Stats = 0, Empty state สำหรับ Sessions | 🟢 Low |
+| DASH-10 | Fetch Data ล้มเหลว | API ไม่ตอบ | 1. เข้า Dashboard (API error) | แสดง Toast error, ไม่ crash | 🟡 Medium |
+
+---
+
+## 3. Clients Management (จัดการลูกค้า)
+
+> **ไฟล์ที่เกี่ยวข้อง:** [ClientsList.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/ClientsList.tsx), [NewClientModal.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/NewClientModal.tsx), [EditClientModal.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/EditClientModal.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| CLI-01 | แสดงรายชื่อ Client ทั้งหมด | มี Client ในระบบ | 1. ไปที่ `/trainer/clients` | แสดงรายชื่อ Client พร้อม Name, Goal, Status, Next Session | 🔴 High |
+| CLI-02 | ค้นหา Client ด้วย Search Bar | มี Client ชื่อ "John" | 1. พิมพ์ "John" ใน Search | กรองแสดงเฉพาะ Client ที่ชื่อตรง/คล้าย "John" | 🔴 High |
+| CLI-03 | ค้นหา Client ที่ไม่มีในระบบ | - | 1. พิมพ์ "xxxxxxxxx" ใน Search | แสดง Empty State "No clients found" | 🟡 Medium |
+| CLI-04 | สร้าง Client ใหม่ — กรอกข้อมูลครบ | - | 1. กดปุ่ม "New Client" 2. กรอก Name, Email, Phone, Goal 3. Submit | สร้าง Client สำเร็จ, Toast success, Client ใหม่ปรากฏใน list | 🔴 High |
+| CLI-05 | สร้าง Client ใหม่ — ชื่อซ้ำ | มี Client "John" อยู่แล้ว | 1. กด "New Client" 2. กรอกชื่อ "John" 3. Submit | แสดง AlertDialog ยืนยันว่าชื่อซ้ำ, ให้เลือก Continue/Cancel | 🟡 Medium |
+| CLI-06 | สร้าง Client ใหม่ — ไม่กรอก Required Fields | - | 1. กด "New Client" 2. ไม่กรอก Name 3. Submit | แสดง Validation error | 🟡 Medium |
+| CLI-07 | แก้ไข Client (Edit) | มี Client อยู่ | 1. กดปุ่ม "⋯" > "Edit" ที่ Client card 2. แก้ไขข้อมูล 3. Save | อัพเดตข้อมูล Client สำเร็จ, Toast success | 🔴 High |
+| CLI-08 | เปลี่ยน Goal ของ Client | มี Client อยู่ | 1. Edit Client 2. เปลี่ยน Goal จาก "Weight Loss" เป็น "Muscle Building" 3. Save | Goal อัพเดต + แสดง Target Weight field (ถ้า Goal = Weight Loss) | 🟡 Medium |
+| CLI-09 | ลบ Client | มี Client อยู่ | 1. กดปุ่ม "⋯" > "Delete" 2. ยืนยัน AlertDialog | ลบ Client สำเร็จ, Toast success, Client หายจาก list | 🔴 High |
+| CLI-10 | ลบ Client — กดยกเลิก | มี Client อยู่ | 1. กด "⋯" > "Delete" 2. กด "Cancel" | ไม่ลบ, Dialog ปิด, Client ยังอยู่ | 🟢 Low |
+| CLI-11 | กดดู Client Profile | มี Client อยู่ | 1. กดที่ชื่อ/Card ของ Client | Navigate ไป `/trainer/clients/{id}` | 🔴 High |
+| CLI-12 | แสดง Status Badge ถูกต้อง | มี Client สถานะ Active/Paused/Inactive | 1. ดู Client List | Badge สีเขียว = Active, สีเหลือง = Paused, สีเทา = Inactive | 🟡 Medium |
+| CLI-13 | แสดง Next Session ของ Client | Client มี Session scheduled | 1. ดู Client List | แสดงวันที่/เวลาของ Next Session ถัดไป | 🟡 Medium |
+| CLI-14 | กด Schedule Session จาก Client List | มี Client | 1. กดปุ่ม Calendar Icon ที่ Client card | Navigate ไปหน้า AddSession พร้อม pre-select Client | 🟡 Medium |
+
+---
+
+## 4. Client Profile (โปรไฟล์ลูกค้า)
+
+> **ไฟล์ที่เกี่ยวข้อง:** [ClientProfilePage.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/ClientProfilePage.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| PROF-01 | แสดง Client Profile ครบถ้วน | มี Client ในระบบ | 1. ไปที่ `/trainer/clients/{id}` | แสดง Avatar, Name, Email, Phone, Status, Goal, Metrics | 🔴 High |
+| PROF-02 | Client ไม่มีในระบบ (Invalid ID) | ไม่มี Client id = 9999 | 1. เข้า `/trainer/clients/9999` | แสดง Error State หรือ Redirect กลับ `/trainer/clients` | 🟡 Medium |
+| PROF-03 | สลับ Tab — Schedule | อยู่ใน Client Profile | 1. กด Tab "Schedule" | แสดง ClientSchedule component | 🔴 High |
+| PROF-04 | สลับ Tab — Program | อยู่ใน Client Profile | 1. กด Tab "Program" | แสดง ClientProgram component | 🔴 High |
+| PROF-05 | สลับ Tab — Progress | อยู่ใน Client Profile | 1. กด Tab "Progress" | แสดง ClientProgress component | 🔴 High |
+| PROF-06 | สลับ Tab — Notes | อยู่ใน Client Profile | 1. กด Tab "Notes" | แสดง ClientNotes component | 🔴 High |
+| PROF-07 | กด Edit Client จาก Profile | อยู่ใน Client Profile | 1. กดปุ่ม Edit (✏️) | เปิด EditClientModal พร้อมข้อมูล Client ปัจจุบัน | 🟡 Medium |
+| PROF-08 | แก้ไข Client แล้วข้อมูลอัพเดต | อยู่ใน Client Profile | 1. กด Edit 2. แก้ไข Name 3. Save | Profile Page อัพเดตชื่อใหม่ทันที | 🔴 High |
+| PROF-09 | กด Start Session จาก Client Profile | Client = Active | 1. กดปุ่ม "Start Session" | Navigate ไปหน้า Session Log (สร้าง Session ใหม่) | 🔴 High |
+| PROF-10 | แสดง Status Badge ถูกตาม status | Client status = "active" | 1. ดู Profile | แสดง Badge Active สีเขียว | 🟡 Medium |
+| PROF-11 | Responsive Layout (Mobile) | จอ Mobile (< 768px) | 1. เปิด Client Profile บน Mobile | Tabs เป็น Horizontal Scrollable, ข้อมูล Stack เป็น Column | 🟡 Medium |
+| PROF-12 | กดปุ่ม Back กลับ Clients List | อยู่ใน Client Profile | 1. กดปุ่ม ← (Back) | Navigate กลับ `/trainer/clients` | 🟢 Low |
+
+---
+
+## 5. Client Schedule (ตารางเวลาลูกค้า)
+
+> **ไฟล์ที่เกี่ยวข้อง:** [ClientSchedule.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/client-profile/ClientSchedule.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| SCHED-01 | แสดงรายการ Sessions ของ Client | Client มี Sessions | 1. ไปที่ Client Profile > Tab "Schedule" | แสดง Session list พร้อม Title, Date, Time, Status | 🔴 High |
+| SCHED-02 | สร้าง Session ใหม่ | อยู่ที่ Schedule Tab | 1. กด "+" หรือ "New Session" 2. เลือกวัน/เวลา 3. เพิ่ม Exercise 4. Save | สร้าง Session สำเร็จ, ปรากฏใน list | 🔴 High |
+| SCHED-03 | เพิ่ม Exercise ใน Session ใหม่ | กำลังสร้าง Session | 1. กด "Add Exercise" 2. เลือก Exercise จากรายการ | Exercise เพิ่มเข้าใน Session พร้อม Sets | 🔴 High |
+| SCHED-04 | เพิ่ม/ลบ Set ใน Exercise | มี Exercise ใน Session | 1. กด "+" เพื่อเพิ่ม Set 2. กด "×" เพื่อลบ Set | จำนวน Set เพิ่ม/ลดตามที่กด | 🟡 Medium |
+| SCHED-05 | ลบ Exercise ออกจาก Session | มี Exercise ใน Session | 1. กดปุ่ม "Remove" ที่ Exercise | Exercise หายจาก Session form | 🟡 Medium |
+| SCHED-06 | ลบ Session | มี Session อยู่ | 1. กดปุ่ม Delete (🗑️) ที่ Session 2. ยืนยัน | ลบ Session สำเร็จ, หายจาก list | 🔴 High |
+| SCHED-07 | กดดู Session Log | Session status = "completed" หรือ "in_progress" | 1. กดปุ่ม View (👁️) ที่ Session | Navigate ไป `/trainer/sessions/{id}/log` | 🔴 High |
+| SCHED-08 | กด Start Session | Session status = "scheduled" | 1. กดปุ่ม Play (▶️) ที่ Session | Navigate ไปหน้า Session Log เพื่อเริ่มสอน | 🔴 High |
+| SCHED-09 | Reschedule Session (เลื่อนวัน) | มี Session status = "scheduled" | 1. กดปุ่ม Reschedule 2. เลือกวัน/เวลาใหม่ 3. Confirm | Session อัพเดตเวลาใหม่, Toast success | 🟡 Medium |
+| SCHED-10 | แสดง Status Badge ถูกต้อง | มี Sessions หลาย status | 1. ดู Schedule list | "Scheduled" = สีฟ้า, "Completed" = สีเขียว, "In Progress" = สีเหลือง | 🟡 Medium |
+
+---
+
+## 6. Client Progress (ความก้าวหน้าลูกค้า)
+
+> **ไฟล์ที่เกี่ยวข้อง:** [ClientProgress.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/client-profile/ClientProgress.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| PROG-01 | แสดง Overview — Metric Cards (น้ำหนัก, Body Fat, etc.) | Client มีข้อมูล Metrics | 1. ไปที่ Client Profile > Tab "Progress" | แสดง Primary Metric Cards (ตาม Goal: weight, body_fat, muscle, etc.) | 🔴 High |
+| PROG-02 | แสดง Metric Cards ตาม Goal ของ Client | Client Goal = "weight_loss" | 1. ดู Progress tab | Primary = Weight, Body Fat; Secondary = Waist, Hip, BMI | 🔴 High |
+| PROG-03 | แสดงกราฟ Overview | Client มี Records หลายวัน | 1. ดู Progress tab | แสดง Line Chart/Area Chart ของ Metrics ที่บันทึก | 🔴 High |
+| PROG-04 | เปิด Update Metrics Modal | อยู่ที่ Progress tab | 1. กดปุ่ม "Update" | เปิด Modal พร้อม Tabs (Basic, Body, Strength) | 🔴 High |
+| PROG-05 | บันทึก Metric ใหม่ (เช่น น้ำหนัก) | Modal เปิดอยู่ | 1. กรอกค่า Weight = 75 2. กด Save | บันทึกสำเร็จ, กราฟอัพเดต, Card แสดงค่าใหม่ | 🔴 High |
+| PROG-06 | แสดงกราฟ History (Popup Graph) | Client มี Records | 1. กดไอคอนกราฟ (📈) ที่ Metric Card ใดก็ได้ | แสดง Mini Chart Popup ของค่า Metric นั้นตลอดช่วงเวลา | 🟡 Medium |
+| PROG-07 | แสดง Trend Indicator | มี Records ≥ 2 จุด | 1. ดู Metric Card | แสดง ↑ (เพิ่ม), ↓ (ลด), หรือ — (คงที่) พร้อมตัวเลข % เปลี่ยนแปลง | 🟡 Medium |
+| PROG-08 | บันทึก Strength (1RM) Metric | Modal > Tab "Strength" | 1. เลือก Exercise 2. กรอกค่า 1RM 3. Save | บันทึก 1RM สำเร็จ | 🟡 Medium |
+| PROG-09 | เพิ่ม/ลบ Manual Metric (ท่าออกกำลังกายที่ต้องการ Track) | Modal > Tab "Strength" | 1. กด "+" เพื่อเพิ่ม Exercise 2. กด "×" เพื่อลบ | รายการ Strength Metric เพิ่ม/ลดตามที่กด | 🟡 Medium |
+| PROG-10 | ไม่มีข้อมูล Metrics (First Time) | Client ใหม่, ยังไม่มี Records | 1. ดู Progress tab | แสดง Demo Data หรือ Empty State พร้อมปุ่ม "Update" | 🟢 Low |
+
+---
+
+## 7. Client Notes (บันทึกลูกค้า)
+
+> **ไฟล์ที่เกี่ยวข้อง:** [ClientNotes.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/client-profile/ClientNotes.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| NOTE-01 | แสดงรายการ Notes ของ Client | Client มี Notes | 1. ไปที่ Client Profile > Tab "Notes" | แสดง Note list พร้อม Preview (first line), Date, Type | 🔴 High |
+| NOTE-02 | เพิ่ม Note ใหม่ | อยู่ที่ Notes tab | 1. กด "+" หรือ "Add Note" 2. เลือก Type 3. พิมพ์เนื้อหา 4. Save | Note ใหม่ปรากฏใน list, Toast success | 🔴 High |
+| NOTE-03 | แก้ไข Note | มี Note อยู่ | 1. กดปุ่ม "Edit" (✏️) ที่ Note 2. แก้เนื้อหา 3. Save | Note อัพเดต, Toast success | 🔴 High |
+| NOTE-04 | ลบ Note | มี Note อยู่ | 1. กดปุ่ม "Delete" (🗑️) 2. ยืนยัน | ลบ Note สำเร็จ, หายจาก list | 🔴 High |
+| NOTE-05 | ค้นหา Notes ด้วย Search | มี Notes หลายรายการ | 1. พิมพ์ Keyword ใน Search | กรองแสดงเฉพาะ Notes ที่มี Keyword ตรง | 🟡 Medium |
+| NOTE-06 | เพิ่ม Note โดยไม่กรอกเนื้อหา | Modal เปิดอยู่ | 1. ปล่อย Content ว่าง 2. กด Save | แสดง Validation error, ไม่บันทึก | 🟡 Medium |
+| NOTE-07 | แสดงวันที่ถูกต้อง (Date Formatting) | มี Notes | 1. ดู Note list | วันที่แสดงถูก format (เช่น "25 ก.พ. 2026") | 🟢 Low |
+| NOTE-08 | แสดง First Line As Preview | Note มีหลายบรรทัด | 1. ดู Note list (ไม่ expand) | แสดงเฉพาะบรรทัดแรกเป็น preview | 🟢 Low |
+
+---
+
+## 8. Calendar (ปฏิทิน)
+
+> **ไฟล์ที่เกี่ยวข้อง:** [Calendar.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/Calendar.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| CAL-01 | แสดง Calendar แบบ Monthly View | - | 1. ไปที่ `/trainer/calendar` | แสดง Calendar ของเดือนปัจจุบัน + วันที่วันนี้ highlight | 🔴 High |
+| CAL-02 | เลื่อนเดือน (Previous/Next) | - | 1. กดปุ่ม "‹" (prev) หรือ "›" (next) | Calendar เลื่อนไปเดือนก่อน/ถัดไป | 🔴 High |
+| CAL-03 | แสดง Sessions บนวันที่ | มี Sessions | 1. ดู Calendar | วันที่มี Session แสดง Dot/Badge สีต่างๆ (ตาม Client) | 🔴 High |
+| CAL-04 | สร้าง Session ใหม่จาก Calendar | - | 1. กดปุ่ม "+" หรือกดที่วันที่ 2. เลือก Client, เวลา, ชื่อ Session 3. Submit | สร้าง Session สำเร็จ, แสดงบน Calendar | 🔴 High |
+| CAL-05 | สร้าง Session ซ้ำเวลาเดิม (Overlap) | มี Session 10:00-11:00 อยู่แล้ว | 1. สร้าง Session ใหม่ 10:30 | แสดง AlertDialog ยืนยัน Replace/Cancel | 🟡 Medium |
+| CAL-06 | ยืนยัน Replace Session ที่ Overlap | AlertDialog เปิดอยู่ | 1. กด "Replace" | ลบ Session เก่า แทนที่ด้วย Session ใหม่ | 🟡 Medium |
+| CAL-07 | ลบ Session จาก Calendar | มี Session | 1. กดที่ Session บน Calendar 2. กด Delete (🗑️) | ลบ Session สำเร็จ, หายจาก Calendar | 🔴 High |
+| CAL-08 | กด Start Session จาก Calendar | Session status = "scheduled" | 1. กดที่ Session 2. กด "Start" | Navigate ไป `/trainer/sessions/{id}/log` | 🔴 High |
+| CAL-09 | สร้าง Rest Day | - | 1. กดปุ่ม "Rest Day" 2. เลือกวันที่ 3. Confirm | แสดง Rest Day marker บน Calendar (ไอคอน ☕) | 🟡 Medium |
+| CAL-10 | ลบ Note/Rest Day จาก Calendar | มี Rest Day/Note บน Calendar | 1. กดที่ Note/Rest Day 2. กด Delete | ลบ Note/Rest Day สำเร็จ | 🟡 Medium |
+| CAL-11 | Session Color ตาม Client | มี Sessions ของ Client ต่างกัน | 1. ดู Calendar | Sessions ของ Client คนละคนแสดงคนละสี | 🟢 Low |
+| CAL-12 | แสดง Session รายละเอียดเมื่อกด | มี Sessions | 1. กดที่ Session marker บน Calendar | แสดง Session popup/detail: Client name, Time, Status, Notes | 🟡 Medium |
+
+---
+
+## 9. Session Log (บันทึก Session)
+
+> **ไฟล์ที่เกี่ยวข้อง:** [SessionLog.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/SessionLog.tsx), [AddSession.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/AddSession.tsx), [SessionSummaryCard.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/SessionSummaryCard.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| SLOG-01 | แสดง Session Log — ข้อมูล Session | มี Session ที่ Started | 1. ไปที่ `/trainer/sessions/{id}/log` | แสดง Client name, Session title, Date, Status | 🔴 High |
+| SLOG-02 | แสดง Exercise List ใน Session | Session มี Exercises | 1. ดู Session Log | แสดง Exercise list พร้อม Sets, Reps, Weight, Status | 🔴 High |
+| SLOG-03 | แก้ไขค่า Set (Reps, Weight, RPE) | มี Sets ใน Exercise | 1. กดที่ Set 2. แก้ Reps/Weight/RPE | ค่าอัพเดตใน state ทันที | 🔴 High |
+| SLOG-04 | Toggle Set Completed (✓) | มี Set | 1. กด checkbox ของ Set | Set เปลี่ยนสถานะ completed ↔ uncompleted | 🔴 High |
+| SLOG-05 | Toggle Exercise Completed | มี Exercise | 1. กด checkbox ของ Exercise | Exercise เปลี่ยนสถานะ + ทุก Sets ภายใน toggle ตาม | 🔴 High |
+| SLOG-06 | เพิ่ม Exercise ใน Session ระหว่าง Log | Session กำลัง In Progress | 1. กดปุ่ม "Add Exercise" 2. เลือก Exercise 3. ตั้ง Sets | Exercise ใหม่เพิ่มเข้ามาใน Session | 🟡 Medium |
+| SLOG-07 | บันทึก Exercise Notes | มี Exercise | 1. พิมพ์ Notes ในช่อง Exercise notes | Notes บันทึกสำเร็จ | 🟡 Medium |
+| SLOG-08 | Save Session (Draft) | กำลังแก้ไข Session | 1. กดปุ่ม "Save" (ไม่ Complete) | Session บันทึก status = "in_progress", Toast success | 🔴 High |
+| SLOG-09 | Complete Session | Exercise ทั้งหมด completed | 1. กดปุ่ม "Complete Session" 2. (Optional) ใส่ Rating/Feedback 3. Confirm | Session status = "completed", redirect กลับ, Toast success | 🔴 High |
+| SLOG-10 | Complete Session — Rating & Feedback | กด Complete | 1. ใส่ Rating (1-5 ดาว) + Feedback 2. Confirm | บันทึก Rating & Feedback ลงใน Session | 🟡 Medium |
+| SLOG-11 | แสดง Session Summary Card | Session = "completed" | 1. เปิด Session ที่ completed | แสดง SessionSummaryCard: สรุป exercises, sets, volume, rating | 🔴 High |
+| SLOG-12 | แสดง Tracking Fields (Advanced) | Exercise มี tracking fields พิเศษ (distance, pace, time) | 1. ดู Exercise ใน Session Log | แสดง field เพิ่มเติมตาม tracking_fields config | 🟡 Medium |
+| SLOG-13 | WebSocket — Real-time Sync | Session เปิดใน 2 tabs | 1. แก้ไข Set ใน Tab A 2. ดู Tab B | Tab B อัพเดตค่าตาม real-time (ผ่าน WebSocket) | 🟡 Medium |
+| SLOG-14 | Duration Formatting (MM:SS) | Exercise มี duration field | 1. กรอก duration = "1:30" 2. Save | แปลงเป็น 90 วินาที แล้วแสดงกลับเป็น "01:30" | 🟡 Medium |
+
+---
+
+## 10. Program Builder (สร้างโปรแกรม)
+
+> **ไฟล์ที่เกี่ยวข้อง:** [ProgramBuilderSectionBased.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/ProgramBuilderSectionBased.tsx), [AssignProgramModal.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/AssignProgramModal.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| PB-01 | แสดงรายการ Programs (Templates) | มี Programs | 1. ไปที่ `/trainer/programs` | แสดง Program list พร้อม Name, Duration, Days/Week, Assigned Count | 🔴 High |
+| PB-02 | สร้าง Program ใหม่ | - | 1. กดปุ่ม "New Program" 2. กรอก Name, Duration, Days/Week 3. Save | สร้าง Program สำเร็จ, เปิดหน้า Builder | 🔴 High |
+| PB-03 | เพิ่ม Section ใน Day | Program Builder เปิดอยู่ | 1. กดปุ่ม "Add Section" 2. เลือก Section Type (Warm-up, Main, Cooldown) 3. เลือก Format (Straight Sets, Circuit, etc.) | Section ใหม่ปรากฏใน Day | 🔴 High |
+| PB-04 | เพิ่ม Exercise ใน Section | มี Section อยู่ | 1. กดปุ่ม "Add Exercise" ใน Section 2. เลือก Exercise จาก Library | Exercise เพิ่มเข้าใน Section พร้อม default Sets | 🔴 High |
+| PB-05 | แก้ไขค่า Set ใน Exercise (Reps, Weight, Rest, RPE) | มี Exercise ใน Section | 1. กดแก้ค่า Reps/Weight/Rest/RPE ในตาราง | ค่าอัพเดตทันที | 🔴 High |
+| PB-06 | เพิ่ม/ลบ Set ใน Exercise | มี Exercise | 1. กด "+" เพื่อเพิ่ม Set 2. กด "×" เพื่อลบ Set | จำนวน Set เปลี่ยนตามที่กด | 🟡 Medium |
+| PB-07 | ลบ Exercise ออกจาก Section | มี Exercise | 1. กดปุ่ม Delete (🗑️) ที่ Exercise | Exercise หายจาก Section | 🟡 Medium |
+| PB-08 | ลบ Section ทั้งอัน | มี Section | 1. กดปุ่ม Delete ที่ Section header | Section + Exercises ทั้งหมดหายไป | 🟡 Medium |
+| PB-09 | สลับ Week / Day ใน Program | Program มีหลาย Weeks/Days | 1. กดเลือก Week 2 2. กดเลือก Day 3 | แสดง Sections ของ Week 2, Day 3 | 🔴 High |
+| PB-10 | Mark Day เป็น Rest Day | อยู่ที่ Day ใดก็ได้ | 1. Toggle "Rest Day" switch | Day แสดงเป็น Rest Day, ไม่มี Sections | 🟡 Medium |
+| PB-11 | Duplicate Program | มี Program | 1. กดปุ่ม "Duplicate" (📋) | สร้าง Program สำเนาพร้อม "(Copy)" ใน name | 🟡 Medium |
+| PB-12 | ลบ Program | มี Program | 1. กดปุ่ม Delete 2. ยืนยัน AlertDialog | ลบ Program สำเร็จ, หายจาก list | 🔴 High |
+| PB-13 | Assign Program ให้ Client | มี Program Template | 1. กดปุ่ม "Assign" 2. เลือก Client(s) 3. ตั้ง Start Date / เวลา 4. Confirm | Assign สำเร็จ, Client มี Program, สร้าง Sessions ตาม schedule | 🔴 High |
+| PB-14 | Assign Program — Client มี Program อยู่แล้ว | Client มี Program assigned | 1. กด Assign > เลือก Client ที่มี Program | แสดง Warning ⚠️ "Client already has a program", ถามยืนยัน Replace | 🟡 Medium |
+| PB-15 | ค้นหา Program | มี Programs หลายตัว | 1. พิมพ์ใน Search bar | กรอง Programs ตาม keyword | 🟡 Medium |
+| PB-16 | Save Program — แก้ไขข้อมูล | เปิด Program ที่มีอยู่ | 1. แก้ไข Exercise/Set 2. กด Save | บันทึกทุก Weeks/Days/Sections/Exercises สำเร็จ | 🔴 High |
+
+---
+
+## 11. Exercise Library (คลังท่าออกกำลังกาย)
+
+> **ไฟล์ที่เกี่ยวข้อง:** [ExerciseLibrary.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/ExerciseLibrary.tsx), [ExerciseForm.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/forms/ExerciseForm.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| EX-01 | แสดงรายการ Exercises ทั้งหมด | มี Exercises ในระบบ | 1. ไปที่ `/trainer/library/exercises` | แสดง Exercise list พร้อม Name, Category, Muscle Groups, Modality | 🔴 High |
+| EX-02 | ค้นหา Exercise ด้วย Search | มี Exercises | 1. พิมพ์ "Squat" ใน Search | กรองแสดงเฉพาะ Exercise ที่ชื่อ/category ตรง "Squat" | 🔴 High |
+| EX-03 | Filter Exercise ตาม Category | มี Exercises หลาย Category | 1. เลือก Category filter | แสดงเฉพาะ Exercises ใน Category ที่เลือก | 🟡 Medium |
+| EX-04 | เพิ่ม Exercise ใหม่ | - | 1. กดปุ่ม "Add Exercise" 2. กรอก Name, Category, Muscle Groups, Instructions 3. Submit | Exercise ใหม่ปรากฏใน list | 🔴 High |
+| EX-05 | เพิ่ม Exercise — ไม่กรอก Required Fields | - | 1. กด "Add Exercise" 2. ปล่อย Name ว่าง 3. Submit | แสดง Validation error, ไม่บันทึก | 🟡 Medium |
+| EX-06 | แก้ไข Exercise | มี Exercise อยู่ | 1. กดปุ่ม "Edit" (✏️) ที่ Exercise 2. แก้ไขข้อมูล 3. Save | Exercise อัพเดต, Toast success | 🔴 High |
+| EX-07 | ลบ Exercise | มี Exercise | 1. กดปุ่ม "Delete" (🗑️) 2. ยืนยัน | ลบ Exercise สำเร็จ, หายจาก list | 🔴 High |
+| EX-08 | ดูรายละเอียด Exercise (View) | มี Exercise | 1. กดปุ่ม "View" (👁️) | แสดง Exercise detail: Instructions, Muscle Groups, Tracking Fields | 🟡 Medium |
+| EX-09 | แสดง Modality Badge | Exercise มี modality | 1. ดู Exercise list | แสดง Badge สีต่างกัน (Barbell, Dumbbell, Machine, Bodyweight, etc.) | 🟢 Low |
+| EX-10 | เลือก Tracking Fields | กำลังสร้าง/แก้ไข Exercise | 1. เลือก Tracking Fields (reps, weight, distance, time, etc.) | Tracking Fields บันทึกเข้ากับ Exercise | 🟡 Medium |
+
+---
+
+## 12. Reports (รายงาน)
+
+> **ไฟล์ที่เกี่ยวข้อง:** [Reports.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/Reports.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| RPT-01 | แสดงหน้า Reports — เลือก Client | มี Clients | 1. ไปที่ `/trainer/reports` | แสดง Client Selector dropdown | 🔴 High |
+| RPT-02 | แสดง Stats Cards (Volume, Sets, Sessions) | เลือก Client แล้ว, มี Session Logs | 1. เลือก Client จาก dropdown | แสดง Stat Cards: Total Volume, Total Sets, Sessions Count, Trend (↑/↓) | 🔴 High |
+| RPT-03 | แสดง Charts ตาม Goal | Client Goal = "weight_loss" | 1. เลือก Client | แสดง Chart เน้น Weight Trend, Body Fat Trend | 🔴 High |
+| RPT-04 | แสดง Charts ตาม Goal — Muscle Building | Client Goal = "muscle_building" | 1. เลือก Client | แสดง Chart เน้น Volume/Week, Muscle Mass Trend | 🟡 Medium |
+| RPT-05 | แสดง Weekly Volume Chart | Client มี Session Logs หลาย Weeks | 1. เลือก Client 2. ดู Report | แสดง Bar/Line Chart ของ Weekly Volume (Total Volume per Week) | 🔴 High |
+| RPT-06 | แสดง Health Metrics (VO2 Max, Resting HR) | Client มี Health Metrics | 1. เลือก Client | แสดง VO2 Max, Resting HR ถ้ามี data | 🟡 Medium |
+| RPT-07 | ไม่มีข้อมูล — Empty State | Client ไม่มี Session Logs | 1. เลือก Client ที่ไม่มี Log | แสดง Empty State "No data available" | 🟡 Medium |
+| RPT-08 | Trend Calculation ถูกต้อง | Client มีข้อมูลหลายจุด | 1. ดู Report | Trend Change (%) คำนวณถูกต้อง: (latest - first) / first × 100 | 🟡 Medium |
+
+---
+
+## 13. Settings (ตั้งค่า)
+
+> **ไฟล์ที่เกี่ยวข้อง:** [Settings.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/Settings.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| SET-01 | แสดง Settings — ข้อมูล Profile | Logged in | 1. ไปที่ `/trainer/settings` | แสดง Name, Email, Phone, Avatar, Member Since | 🔴 High |
+| SET-02 | แก้ไข Profile — Name | อยู่ที่ Settings | 1. แก้ไข Name 2. กด "Save Changes" | อัพเดต Name สำเร็จ, Toast success, Header อัพเดต | 🔴 High |
+| SET-03 | แก้ไข Profile — Phone Number | อยู่ที่ Settings | 1. แก้ Phone Number 2. Save | อัพเดต Phone สำเร็จ | 🟡 Medium |
+| SET-04 | อัพโหลด Avatar | อยู่ที่ Settings | 1. กดที่ Avatar 2. เลือกไฟล์รูป 3. Save | Avatar อัพเดต, แสดงรูปใหม่ใน Header + Settings | 🔴 High |
+| SET-05 | อัพโหลด Avatar — ไฟล์ที่ไม่ใช่รูป | อยู่ที่ Settings | 1. กดที่ Avatar 2. เลือกไฟล์ .pdf | แสดง Error, ไม่อัพโหลด | 🟡 Medium |
+| SET-06 | อัพโหลด Avatar — ไฟล์ใหญ่เกินไป | อยู่ที่ Settings | 1. เลือกรูป > 5MB | แสดง Error "File too large", ไม่อัพโหลด | 🟡 Medium |
+| SET-07 | Logout จาก Settings | Logged in | 1. กดปุ่ม "Logout" | เรียก `/auth/logout`, ล้าง state, redirect ไป `/signin` | 🔴 High |
+| SET-08 | Member Since แสดงถูกต้อง | User มี `created_at` | 1. ดู Settings | แสดงวันที่ format ถูกต้อง (เช่น "February 2026") | 🟢 Low |
+
+---
+
+## 14. Layout & Navigation
+
+> **ไฟล์ที่เกี่ยวข้อง:** [DashboardLayout.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/DashboardLayout.tsx), [Layout.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/Layout.tsx), [CommandPalette.tsx](file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/CommandPalette.tsx)
+
+| TC ID | Test Case | Precondition | Steps | Expected Result | Priority |
+|-------|-----------|-------------|-------|-----------------|----------|
+| LAY-01 | แสดง Sidebar Navigation | Logged in | 1. ดู Dashboard | แสดง Sidebar พร้อม Menu: Dashboard, Clients, Calendar, Programs, Exercises, Reports, Settings | 🔴 High |
+| LAY-02 | Sidebar — Active State Highlight | อยู่ที่หน้า Clients | 1. ดู Sidebar | Menu "Clients" highlight/active สี | 🟡 Medium |
+| LAY-03 | Sidebar — Navigate ระหว่างหน้า | อยู่ที่ Dashboard | 1. กดเมนู "Calendar" | Navigate ไป `/trainer/calendar` | 🔴 High |
+| LAY-04 | Responsive — Mobile Sidebar (Hamburger) | จอ Mobile (< 768px) | 1. ดูหน้าบน Mobile | Sidebar ซ่อนเป็น Hamburger menu, กดเปิด/ปิดได้ | 🟡 Medium |
+| LAY-05 | Command Palette (Keyboard Shortcut) | Logged in | 1. กด `Ctrl+K` หรือ `Cmd+K` | เปิด Command Palette สำหรับค้นหาเร็ว | 🟡 Medium |
+| LAY-06 | Catch-all Route — หน้าที่ไม่มี | - | 1. เข้า URL ที่ไม่มี เช่น `/trainer/xyz` | Redirect ไป `/signin` | 🟢 Low |
+
+---
+
+## สรุปตามระดับความสำคัญ
+
+| Priority | จำนวน | คำอธิบาย |
+|----------|-------|----------|
+| 🔴 **High** | 68 | ฟีเจอร์หลักที่ต้องผ่าน 100% ก่อน Release |
+| 🟡 **Medium** | 60 | ฟีเจอร์รอง + Edge Cases ที่ควรทดสอบ |
+| 🟢 **Low** | 22 | UI Polish, Formatting, Minor UX |
+
+> [!TIP]
+> **แนวทางการ Run Test:**
+> - เริ่มจาก **🔴 High** ก่อนเสมอ → ถ้า High ไม่ผ่าน ถือว่า Block Release
+> - ต่อด้วย **🟡 Medium** → Edge cases + Error handling
+> - สุดท้าย **🟢 Low** → UX/UI polish

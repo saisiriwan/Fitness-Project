@@ -153,10 +153,8 @@ type ProgramExercise struct {
 	Reps     JSONStringArray `json:"reps" db:"reps"`
 	Weight   JSONFloatArray  `json:"weight" db:"weight"`
 	Distance JSONStringArray `json:"distance" db:"distance"`
-
-	// JSONB Array Fields (String/Mixed)
-	Pace JSONStringArray `json:"pace" db:"pace"`
-	Side JSONStringArray `json:"side" db:"side"`
+	Pace     JSONStringArray `json:"pace" db:"pace"`
+	Side     JSONStringArray `json:"side" db:"side"`
 
 	// ✅ NEW: Additional JSONB fields for complete data
 	Duration JSONStringArray `json:"duration" db:"duration"`   // Per-set duration
@@ -178,9 +176,6 @@ type ProgramExercise struct {
 	Watts         JSONFloatArray  `json:"watts" db:"watts"`
 	RPM           JSONFloatArray  `json:"rpm" db:"rpm"`
 	Rounds        JSONFloatArray  `json:"rounds" db:"rounds"`
-
-	// Video Link (Text)
-	VideoLink string `json:"video_link" db:"video_link"`
 
 	// Numeric/Constraint Fields
 	Sets             int     `json:"sets" db:"sets"`

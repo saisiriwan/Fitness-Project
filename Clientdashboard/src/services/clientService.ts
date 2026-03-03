@@ -60,17 +60,25 @@ export interface SessionExercise {
 }
 
 export interface SessionSet {
-  set_number: number;
-  target_reps: number;
-  target_weight: number;
-  target_rpe: number;
-  actual_reps?: number | null;
-  actual_weight?: number | null;
-  actual_rpe?: number | null;
-  actual_metadata?: Record<string, any>;
-  target_metadata?: Record<string, any>;
-  completed: boolean;
-  completed_at?: string | null;
+  set_number: number
+  completed: boolean
+
+  target_reps?: number
+  target_weight?: number
+  target_rpe?: number
+
+  actual_reps?: number
+  actual_weight?: number
+  actual_rpe?: number
+
+  // ✅ เพิ่มส่วนนี้
+  target_duration?: number      // seconds
+  actual_duration?: number      // seconds
+  rest_duration?: number        // seconds
+  actual_rest_duration?: number // seconds
+
+  target_metadata?: Record<string, any>
+  actual_metadata?: Record<string, any>
 }
 
 export interface ClientMetric {
@@ -255,7 +263,8 @@ export interface ExerciseHistoryItem {
 }
 
 export interface ExerciseHistoryRecord {
-  exercise_name: string;
+  exercise: string;
+  exercise_name?: string;
   exercise_id: string;
   type: string;
   is_bodyweight: boolean;
@@ -295,7 +304,7 @@ export interface ExerciseHistoryResponse {
 }
 
 export interface TrainingProgram {
-  id: string;
+  id: number;
   client_id: string;
   name: string;
   description: string;
@@ -477,6 +486,14 @@ export const clientService = {
   async getCurrentProgram(_clientId: string): Promise<TrainingProgram> {
     // Updated to use Trainee endpoint (clientId ignored)
     const response = await api.get(`/trainee/program/current`);
+    return response.data;
+  },
+
+  /**
+   * Get specific program details (includes days and sections)
+   */
+  async getProgramDetails(programId: string | number): Promise<any> {
+    const response = await api.get(`/programs/${programId}`);
     return response.data;
   },
 

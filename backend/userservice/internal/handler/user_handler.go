@@ -341,7 +341,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 	}
 
 	// ตั้งค่า httpOnly Cookie (จากเอกสาร Auth Part 1)
-	c.SetCookie("access_token", accessToken, 15*60, "/", "", false, true) // httpOnly=true, domain="" for localhost
+	c.SetCookie("access_token", accessToken, 86400, "/", "", false, true) // httpOnly=true, domain="" for localhost
 
 	c.JSON(http.StatusOK, gin.H{"message": "Login successful"})
 }
@@ -470,7 +470,7 @@ func (h *UserHandler) GoogleCallback(c *gin.Context) {
 
 	// 6. ตั้งค่า httpOnly Cookie
 	// Note: You might want to make the domain dynamic in production
-	c.SetCookie("access_token", accessToken, 15*60, "/", "", false, true)
+	c.SetCookie("access_token", accessToken, 86400, "/", "", false, true)
 
 	// 7. (สำคัญ) Redirect กลับไปหน้า Frontend ตาม Role ที่ User เลือกล็อกอินเข้ามา (Target Role)
 	// เพื่อให้สามารถเข้าใช้งานได้ทั้งสองฝั่ง (Trainer/Client) โดยไม่ถูก Force Redirect

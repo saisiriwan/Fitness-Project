@@ -60,6 +60,9 @@ interface SidebarContentProps {
   title: string;
 }
 
+/* Component: SidebarContent
+   ใช้สำหรับ: หน้าจอ Desktop (sidebar ซ้าย)
+   หน้าที่: แสดงเมนูนำทาง + ปุ่มย่อ/ขยาย (collapsed) + active state */
 function SidebarContent({
   collapsed = false,
   onToggle,
@@ -146,6 +149,9 @@ function SidebarContent({
   );
 }
 
+/* Component: MobileBottomNav
+   ใช้สำหรับ: หน้าจอ Mobile (bottom tab bar)
+   หน้าที่: แสดง 5 เมนูหลักที่ด้านล่าง */
 function MobileBottomNav({
   navigation,
 }: {
@@ -194,6 +200,7 @@ export default function DashboardLayout({
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
 
+  /* ฟังก์ชัน: handleSignOut — ออกจากระบบ (เรียก signOut จาก AuthContext) */
   const handleSignOut = async () => {
     await signOut();
   };
@@ -234,7 +241,15 @@ export default function DashboardLayout({
             <div className="flex items-center gap-4 ml-auto">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="avatar-btn">
+                  <Button
+                    variant="ghost"
+                    className="avatar-btn flex items-center gap-2 px-2"
+                  >
+                    {user?.username && (
+                      <span className="hidden sm:block text-sm text-slate-600 font-medium max-w-[200px] truncate">
+                        {user.username}
+                      </span>
+                    )}
                     <Avatar className="avatar-img">
                       <AvatarImage src={user?.picture} alt={user?.name} />
                       <AvatarFallback className="bg-primary text-primary-foreground font-medium">

@@ -63,12 +63,13 @@ export default function ClientNotes({ client }: ClientNotesProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
 
+  /* ฟังก์ชัน: fetchNotes — ดึงโน้ตทั้งหมดของลูกค้าจาก API */
   const fetchNotes = async () => {
-    if (!client?.id) return;
+    if (!client?.id) return; // ถ้ายังไม่มี client → ไม่ทำอะไร
     try {
       setLoading(true);
       const res = await api.get(`/clients/${client.id}/notes`);
-      setNotes(res.data || []);
+      setNotes(res.data || []); // เก็บใน state
     } catch (err) {
       console.error("Failed to fetch notes", err);
       toast.error("โหลดข้อมูลโน้ตไม่สำเร็จ");
@@ -81,36 +82,38 @@ export default function ClientNotes({ client }: ClientNotesProps) {
     fetchNotes();
   }, [client?.id]);
 
+  /* ฟังก์ชัน: handleSaveNote — สร้างโน้ตใหม่ (POST) หรืออัปเดตเดิม (PUT) */
   const handleSaveNote = async () => {
+    // Validation: ต้องมีเนื้อหา
     if (!newNoteContent.trim()) {
       toast.error("กรุณากรอกเนื้อหาโน้ต");
       return;
     }
-
     try {
       if (editingNote) {
-        // Edit Mode
+        // โหมดแก้ไข: PUT อัปเดตโน้ตที่มีอยู่
         const res = await api.put(`/notes/${editingNote.id}`, {
           content: newNoteContent,
           type: "general",
           updated_by: user?.name || "Trainer",
         });
-
+        // แทนที่โน้ตที่ id ตรงกันใน state
         setNotes((prev) =>
           prev.map((n) => (n.id === editingNote.id ? res.data : n)),
         );
         toast.success("แก้ไขโน้ตเรียบร้อยแล้ว");
       } else {
-        // Add Mode
+        // โหมดเพิ่ม: POST สร้างโน้ตใหม่
         const res = await api.post(`/clients/${client.id}/notes`, {
           content: newNoteContent,
           type: "general",
           created_by: user?.name || "Trainer",
         });
+        // เพิ่มแรกสุดของ list
         setNotes((prev) => [res.data, ...prev]);
         toast.success("เพิ่มโน้ตเรียบร้อยแล้ว");
       }
-
+      // ปิด dialog + reset
       setShowAddNoteDialog(false);
       setNewNoteContent("");
       setEditingNote(null);
@@ -119,39 +122,42 @@ export default function ClientNotes({ client }: ClientNotesProps) {
     }
   };
 
+  /* ฟังก์ชัน: handleDeleteNote — ลบโน้ตจาก API (DELETE) + ลบออกจาก state */
   const handleDeleteNote = async () => {
-    if (!noteToDelete) return;
-
+    if (!noteToDelete) return; // ถ้าไม่มี ID → ไม่ทำอะไร
     try {
-      await api.delete(`/notes/${noteToDelete}`);
-      setNotes((prev) => prev.filter((n) => n.id !== noteToDelete));
+      await api.delete(`/notes/${noteToDelete}`); // ลบที่ backend
+      setNotes((prev) => prev.filter((n) => n.id !== noteToDelete)); // ลบออกจาก state
       toast.success("ลบโน้ตเรียบร้อยแล้ว");
     } catch (err) {
       console.error(err);
       toast.error("ลบโน้ตไม่สำเร็จ");
     } finally {
-      setShowDeleteAlert(false);
-      setNoteToDelete(null);
+      setShowDeleteAlert(false); // ปิด dialog
+      setNoteToDelete(null); // reset ID
     }
   };
 
+  /* ฟังก์ชัน: openAddDialog — เปิด Dialog ในโหมดสร้างใหม่ (reset form) */
   const openAddDialog = () => {
-    setEditingNote(null);
-    setNewNoteContent("");
-    setShowAddNoteDialog(true);
+    setEditingNote(null); // ไม่ใช่โหมดแก้ไข
+    setNewNoteContent(""); // ล้างฟอร์ม
+    setShowAddNoteDialog(true); // เปิด Dialog
   };
 
+  /* ฟังก์ชัน: openEditDialog — เปิด Dialog ในโหมดแก้ไข (pre-fill เนื้อหาเดิม) */
   const openEditDialog = (note: Note) => {
-    setEditingNote(note);
-    setNewNoteContent(note.content);
-    setShowAddNoteDialog(true);
+    setEditingNote(note); // เก็บโน้ตที่กำลังแก้ไข
+    setNewNoteContent(note.content); // กรอกเนื้อหาเดิม
+    setShowAddNoteDialog(true); // เปิด Dialog
   };
 
-  // Filter notes based on search query
+  // กรองโน้ตตามคำค้นหา (case-insensitive)
   const filteredNotes = notes.filter((note) =>
     note.content.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
+  /* ฟังก์ชัน: formatNoteDate — แปลง ISO date → "เช่น Jan 15, 2024" */
   const formatNoteDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
@@ -161,9 +167,10 @@ export default function ClientNotes({ client }: ClientNotesProps) {
     });
   };
 
+  /* ฟังก์ชัน: getFirstLine — ดึงบรรทัดแรกของเนื้อหามาแสดงเป็น title */
   const getFirstLine = (content: string) => {
-    const lines = content.split("\n");
-    return lines[0] || content;
+    const lines = content.split("\n"); // แยกตามขึ้นบรรทัดใหม่
+    return lines[0] || content; // คืนบรรทัดแรก
   };
 
   return (

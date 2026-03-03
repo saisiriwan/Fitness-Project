@@ -22,7 +22,7 @@ export interface Exercise {
   muscleGroups: string[];
   movementPattern: string; // Squat, Hinge, Push, Pull, Lunge, Rotate, Carry
   instructions: string;
-  category: string; // Compound, Isolation, Machine, Cable, Bodyweight
+  category: 'weight-training' | 'cardio' | 'flexibility';
   isDefault?: boolean;
   createdBy?: string;
   createdAt?: string;
@@ -248,7 +248,7 @@ export const defaultExercises: Exercise[] = [
     muscleGroups: ['Legs', 'Glutes', 'Core'],
     movementPattern: 'Squat',
     instructions: 'วางบาร์เบลบนบ่า ยืนกางขาเท่าช่วงไหล่ หย่อนสะโพกและย่อเข่าลงจนต้นขาขนานพื้น แล้วดันตัวขึ้น',
-    category: 'Compound',
+    category: 'weight-training',
     isDefault: true
   },
   {
@@ -259,7 +259,7 @@ export const defaultExercises: Exercise[] = [
     muscleGroups: ['Legs', 'Glutes'],
     movementPattern: 'Lunge',
     instructions: 'ก้าวขาไปข้างหน้า ย่อตัวลงจนเข่าหลังเกือบแตะพื้น แล้วก้าวขาอีกข้างตาม ทำสลับกัน',
-    category: 'Bodyweight',
+    category: 'weight-training',
     isDefault: true
   },
   // Strength - Push
@@ -271,7 +271,7 @@ export const defaultExercises: Exercise[] = [
     muscleGroups: ['Chest', 'Shoulders', 'Triceps'],
     movementPattern: 'Push',
     instructions: 'นอนราบ ดันบาร์เบลขึ้นจากระดับอกจนแขนตึง ควบคุมจังหวะลงช้าๆ',
-    category: 'Compound',
+    category: 'weight-training',
     isDefault: true
   },
   {
@@ -282,7 +282,7 @@ export const defaultExercises: Exercise[] = [
     muscleGroups: ['Shoulders', 'Triceps'],
     movementPattern: 'Push',
     instructions: 'ยืนตรง ดันบาร์เบลจากระดับไหล่ขึ้นเหนือศีรษะจนแขนตึง',
-    category: 'Compound',
+    category: 'weight-training',
     isDefault: true
   },
   // Strength - Pull
@@ -294,7 +294,7 @@ export const defaultExercises: Exercise[] = [
     muscleGroups: ['Back', 'Legs', 'Core'],
     movementPattern: 'Hinge',
     instructions: 'ยืนหลังตรง พับสะโพกจับบาร์เบล ยกขึ้นโดยใช้แรงจากสะโพกและขา ล็อคหลังให้ตรงตลอดเวลา',
-    category: 'Compound',
+    category: 'weight-training',
     isDefault: true
   },
   {
@@ -305,7 +305,7 @@ export const defaultExercises: Exercise[] = [
     muscleGroups: ['Back', 'Biceps'],
     movementPattern: 'Pull',
     instructions: 'จับบาร์กว้างกว่าไหล่ ดึงลงมาจนถึงระดับอกบน แล้วค่อยๆ ผ่อนกลับขึ้นไป',
-    category: 'Machine',
+    category: 'weight-training',
     isDefault: true
   },
   // Cardio
@@ -317,7 +317,7 @@ export const defaultExercises: Exercise[] = [
     muscleGroups: ['Full Body'],
     movementPattern: 'Plyometric',
     instructions: 'ย่อตัวลงมือแตะพื้น ดีดขาไปด้านหลัง วิดพื้น 1 ครั้ง ดีดขากลับ แล้วกระโดดขึ้น',
-    category: 'HIIT',
+    category: 'cardio',
     isDefault: true
   },
   {
@@ -328,7 +328,7 @@ export const defaultExercises: Exercise[] = [
     muscleGroups: ['Legs', 'Cardio'],
     movementPattern: 'Locomotion',
     instructions: 'วิ่งบนลู่วิ่ง รักษาจังหวะการหายใจและท่าทางให้เหมาะสม',
-    category: 'Cardio',
+    category: 'cardio',
     isDefault: true
   },
   // Core
@@ -340,7 +340,7 @@ export const defaultExercises: Exercise[] = [
     muscleGroups: ['Core'],
     movementPattern: 'Stability',
     instructions: 'นอนคว่ำ ตั้งศอก วางเท้าจิกพื้น ยกตัวขึ้นให้เป็นเส้นตรง เกร็งหน้าท้องค้างไว้',
-    category: 'Bodyweight',
+    category: 'weight-training',
     isDefault: true
   },
   // Flexibility/Recovery
@@ -352,7 +352,7 @@ export const defaultExercises: Exercise[] = [
     muscleGroups: ['Full Body'],
     movementPattern: 'Stretch',
     instructions: 'ยืดเหยียดกล้ามเนื้อทั่วร่างกาย เน้นจุดที่ตึงเครียด',
-    category: 'Recovery',
+    category: 'flexibility',
     isDefault: true
   }
 ];

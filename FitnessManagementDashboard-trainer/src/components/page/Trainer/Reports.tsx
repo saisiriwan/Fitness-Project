@@ -205,7 +205,7 @@ interface WeeklyVolume {
   sessions: number;
 }
 
-// Helper to map DB goal string to Key
+/* Helper: mapGoalKey — แปลงเป้าหมายจาก DB (text ทั่วไป) → key มาตรฐาน (weight_loss, muscle_building ฯลฯ) */
 const mapGoalKey = (goal: string): string => {
   if (!goal) return "general_health";
   const g = goal.toLowerCase();
@@ -242,6 +242,7 @@ export default function Reports() {
   );
 
   useEffect(() => {
+    /* ฟังก์ชัน: fetchData — ดึง clients + schedules + session-logs + metrics + exercises พร้อมกัน */
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -544,6 +545,7 @@ export default function Reports() {
     const latest = bodyCompHistory[bodyCompHistory.length - 1] || {};
     const first = bodyCompHistory[0] || {};
 
+    /* Helper: calculateChange — คำนวณ % เปลี่ยนแปลงระหว่าง latest กับ first */
     const calculateChange = (latestVal?: number, firstVal?: number) => {
       if (!latestVal || !firstVal || firstVal === 0) return 0;
       return Number((((latestVal - firstVal) / firstVal) * 100).toFixed(1));
@@ -735,8 +737,24 @@ export default function Reports() {
               tick={{ fontSize: 12 }}
               axisLine={false}
               tickLine={false}
+              label={{
+                value: "วันที่",
+                position: "insideBottomRight",
+                offset: -5,
+                style: { fontSize: 12, fill: "#6b7280" },
+              }}
             />
-            <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+            <YAxis
+              tick={{ fontSize: 12 }}
+              axisLine={false}
+              tickLine={false}
+              label={{
+                value: "1RM (kg)",
+                angle: -90,
+                position: "insideLeft",
+                style: { fontSize: 12, fill: "#6b7280" },
+              }}
+            />
             <Tooltip contentStyle={{ borderRadius: "8px" }} />
             <Legend />
             {lines.map((key, idx) => (
@@ -776,12 +794,24 @@ export default function Reports() {
               tick={{ fontSize: 12 }}
               axisLine={false}
               tickLine={false}
+              label={{
+                value: "วันที่",
+                position: "insideBottomRight",
+                offset: -5,
+                style: { fontSize: 12, fill: "#6b7280" },
+              }}
             />
             <YAxis
               yAxisId="left"
               tick={{ fontSize: 12 }}
               axisLine={false}
               tickLine={false}
+              label={{
+                value: "น้ำหนัก (kg)",
+                angle: -90,
+                position: "insideLeft",
+                style: { fontSize: 12, fill: "#6b7280" },
+              }}
             />
             <YAxis
               yAxisId="right"
@@ -790,6 +820,12 @@ export default function Reports() {
               axisLine={false}
               tickLine={false}
               hide={!hasChest && !hasArm && !hasThigh}
+              label={{
+                value: "สัดส่วน (cm)",
+                angle: 90,
+                position: "insideRight",
+                style: { fontSize: 12, fill: "#6b7280" },
+              }}
             />
             <Tooltip contentStyle={{ borderRadius: "8px" }} />
             <Legend />
@@ -918,8 +954,24 @@ export default function Reports() {
             tick={{ fontSize: 12 }}
             axisLine={false}
             tickLine={false}
+            label={{
+              value: "วันที่",
+              position: "insideBottomRight",
+              offset: -5,
+              style: { fontSize: 12, fill: "#6b7280" },
+            }}
           />
-          <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+          <YAxis
+            tick={{ fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            label={{
+              value: "น้ำหนัก (kg) / ไขมัน (%)",
+              angle: -90,
+              position: "insideLeft",
+              style: { fontSize: 12, fill: "#6b7280" },
+            }}
+          />
           <Tooltip contentStyle={{ borderRadius: "8px" }} />
           <Legend />
           <Line
@@ -1087,12 +1139,24 @@ export default function Reports() {
                         stroke="#6b7280"
                         axisLine={false}
                         tickLine={false}
+                        label={{
+                          value: "สัปดาห์",
+                          position: "insideBottomRight",
+                          offset: -5,
+                          style: { fontSize: 12, fill: "#6b7280" },
+                        }}
                       />
                       <YAxis
                         tick={{ fontSize: 12 }}
                         stroke="#6b7280"
                         axisLine={false}
                         tickLine={false}
+                        label={{
+                          value: "จำนวนเซ็ต",
+                          angle: -90,
+                          position: "insideLeft",
+                          style: { fontSize: 12, fill: "#6b7280" },
+                        }}
                       />
                       <Tooltip
                         cursor={{ fill: "#f8fafc" }}
