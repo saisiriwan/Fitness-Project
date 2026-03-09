@@ -672,9 +672,9 @@ export function ProgressView({ user }: ProgressViewProps) {
     // Universal Thai column labels for all 16 tracking fields
     const COLUMN_LABELS: Record<string, string> = {
       // Weight Training fields
-      weight: "น้ำหนัก (kg)",
+      weight: "Weight",
       reps: "REPS",
-      sets: "Sets",
+      sets: "SETS",
       rest: "REST",
       rpe: "RPE",
       one_rm: "%1RM",
@@ -1127,7 +1127,7 @@ export function ProgressView({ user }: ProgressViewProps) {
               <YAxis
                 yAxisId="left"
                 label={{
-                  value: "น้ำหนัก (kg)",
+                  value: "Weight",
                   angle: -90,
                   position: "insideLeft",
                 }}
@@ -1152,7 +1152,7 @@ export function ProgressView({ user }: ProgressViewProps) {
                 stroke={goalConfig.chartColor}
                 fillOpacity={1}
                 fill="url(#colorWeight)"
-                name="น้ำหนัก (kg)"
+                name="Weight"
               />
               {chartDataByGoal.some((d: any) => d.bodyFat) && (
                 <Line
@@ -1186,7 +1186,7 @@ export function ProgressView({ user }: ProgressViewProps) {
               <YAxis
                 yAxisId="left"
                 label={{
-                  value: hasVolume ? "ปริมาณการฝึก (kg)" : "น้ำหนัก (kg)",
+                  value: hasVolume ? "ปริมาณการฝึก (kg)" : "Weight",
                   angle: -90,
                   position: "insideLeft",
                 }}
@@ -1215,7 +1215,7 @@ export function ProgressView({ user }: ProgressViewProps) {
                   dataKey="weight"
                   stroke={goalConfig.chartColor}
                   strokeWidth={2}
-                  name="น้ำหนัก (kg)"
+                  name="Weight"
                 />
               )}
               {hasVolume && (

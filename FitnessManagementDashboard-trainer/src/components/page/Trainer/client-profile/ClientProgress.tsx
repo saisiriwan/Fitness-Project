@@ -1040,7 +1040,7 @@ export default function ClientProgress({ client }: ClientProgressProps) {
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-navy-900">
-                    บันทึกผลการทดสอบ
+                    บันทึกข้อมูลร่างกาย
                   </h2>
                   <p className="text-xs text-gray-500">
                     เลือกหมวดหมู่ที่ต้องการบันทึก

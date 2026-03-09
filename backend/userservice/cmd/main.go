@@ -77,13 +77,16 @@ func main() {
 	// ----------------------------------------------------
 	// 2. ใช้งาน CORS Middleware (ต้องอยู่ก่อน Routes)
 	// ----------------------------------------------------
+
 	r.Use(cors.New(cors.Config{
-		// อนุญาต Origin (บ้าน) ของ Frontend
-		AllowOrigins: []string{"http://localhost:3000", "http://localhost:5173"},
+		// 💥 [CRITICAL FIX] ยอมรับทุก Origin แบบไดนามิก เพื่อแก้ปัญหา CORS ของ Emulator 10.0.2.2 ครอบจักรวาล
+		AllowOriginFunc: func(origin string) bool {
+			return true
+		},
 		// อนุญาต Methods (ท่า) ที่ Frontend ใช้
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		// อนุญาต Headers ที่ Frontend ส่งมา
-		AllowHeaders: []string{"Origin", "Content-Type", "Authorization", "x-role"},
+		AllowHeaders: []string{"Origin", "Content-Type", "Authorization", "x-role", "Accept"},
 		// (สำคัญมาก!) อนุญาตให้ส่ง Cookie (JWT Token) ไปด้วย
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,

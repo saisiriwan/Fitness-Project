@@ -7,7 +7,8 @@ import {
   Pencil,
   MoreHorizontal,
   Dumbbell,
-  Eye,
+  SlidersHorizontal,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,22 +67,19 @@ import ExerciseForm, {
   ExerciseFormData,
 } from "@/components/forms/ExerciseForm";
 
-// Interface ให้ตรงกับ DB และ Frontend logic
 interface Exercise {
   id: number;
   name: string;
   category: string;
-  muscle_groups: string[]; // รับจาก DB เป็น Array of String (TEXT[])
+  muscle_groups: string[];
   description?: string;
-
-  // Helper fields for Frontend
   modality?: string;
   muscleGroups?: string[];
   movementPattern?: string;
   instructions?: string;
   trackingType?: string;
   trackingFields?: string[];
-  caloriesEstimate?: string; // Added to fix data loss
+  caloriesEstimate?: string;
 }
 
 interface ExerciseLibraryProps {
@@ -95,22 +93,19 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [modalityFilter, setModalityFilter] = useState("all");
   const [muscleGroupFilter] = useState("all");
+  const [showFilters, setShowFilters] = useState(false);
 
-  // State สำหรับ Modal (Add/Edit)
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState<number | null>(null);
 
-  // State สำหรับดึงลบข้อมูล (Delete Confirm)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(
     null,
   );
 
-  // State สำหรับดูรายละเอียด (View Details)
   const [viewExercise, setViewExercise] = useState<Exercise | null>(null);
 
-  // State สำหรับ Form Data (ใช้สำหรับ initial data ของ form)
   const [formData, setFormData] = useState<ExerciseFormData>({
     name: "",
     modality: "",
@@ -119,26 +114,21 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
     category: "",
     fields: [],
     instructions: "",
-    caloriesEstimate: "", // Initialize
+    caloriesEstimate: "",
   });
 
-  /* ฟังก์ชัน: fetchExercises — ดึงท่าออกกำลังกายทั้งหมดจาก API + map โครงสร้างให้ตรงกับ frontend */
   const fetchExercises = async () => {
     try {
       setLoading(true);
       const res = await api.get("/exercises");
-
-      // Map ข้อมูลจาก DB ให้ตรงกับ Frontend
       const mappedData = (res.data || []).map((ex: any) => ({
         ...ex,
-        // Backend ส่ง muscle_groups เป็น Array แล้ว ใช้ได้เลย
         muscleGroups: ex.muscle_groups || [],
-        // Map fields
         movementPattern: ex.movement_pattern || "",
         instructions: ex.instructions || ex.description || "",
         trackingType: ex.tracking_type || ex.category || "strength",
         trackingFields: ex.tracking_fields || [],
-        caloriesEstimate: ex.calories_estimate || "", // Map from DB
+        caloriesEstimate: ex.calories_estimate || "",
         modality:
           ex.modality ||
           (ex.category === "cardio"
@@ -147,7 +137,6 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
               ? "flexibility"
               : "strength"),
       }));
-
       setExercises(mappedData);
     } catch (err) {
       console.error("Failed to fetch exercises", err);
@@ -161,15 +150,11 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
     fetchExercises();
   }, []);
 
-  /* ฟังก์ชัน: handleSubmit — สร้างท่าใหม่ (POST) หรือแก้ไขท่าเดิม (PUT) */
   const handleSubmit = async (data: ExerciseFormData) => {
     if (!data.name) {
       toast.error("กรุณากรอกชื่อท่า");
       return;
     }
-
-    // Map modality → exercise category (weight-training/cardio/flexibility)
-    const trackingType = data.category; // form "category" = tracking_type
     const deriveCategory = (modality: string): string => {
       const m = modality.toLowerCase();
       if (m.includes("strength") || m.includes("เสริมแรง"))
@@ -177,9 +162,8 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
       if (m.includes("cardio") || m.includes("คาร์ดิโอ")) return "cardio";
       if (m.includes("flexibility") || m.includes("ยืดหยุ่น"))
         return "flexibility";
-      return "weight-training"; // default
+      return "weight-training";
     };
-
     const payload = {
       name: data.name,
       category: deriveCategory(data.modality),
@@ -187,31 +171,26 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
       movement_pattern: data.movementPattern,
       modality: data.modality,
       instructions: data.instructions,
-      tracking_type: trackingType,
+      tracking_type: data.category,
       tracking_fields: data.fields || [],
       calories_estimate: data.caloriesEstimate || "",
     };
-
     try {
       if (isEditing && currentId) {
-        // Update
         await api.put(`/exercises/${currentId}`, payload);
         toast.success("แก้ไขข้อมูลเรียบร้อยแล้ว");
       } else {
-        // Create
         await api.post("/exercises", payload);
         toast.success("เพิ่มท่าใหม่เรียบร้อยแล้ว");
       }
-
       setShowModal(false);
-      fetchExercises(); // Reload ข้อมูลใหม่
+      fetchExercises();
     } catch (err) {
       console.error(err);
       toast.error(isEditing ? "แก้ไขข้อมูลไม่สำเร็จ" : "เพิ่มข้อมูลไม่สำเร็จ");
     }
   };
 
-  /* ฟังก์ชัน: handleDeleteExercise — ลบท่าจาก API (DELETE) + ลบออกจาก state */
   const handleDeleteExercise = async (id: number) => {
     try {
       await api.delete(`/exercises/${id}`);
@@ -223,7 +202,6 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
     }
   };
 
-  /* ฟังก์ชัน: openAddModal — เปิด modal โหมดเพิ่มท่าใหม่ (reset form) */
   const openAddModal = () => {
     setFormData({
       name: "",
@@ -240,24 +218,22 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
     setShowModal(true);
   };
 
-  /* ฟังก์ชัน: openEditModal — เปิด modal โหมดแก้ไข (pre-fill ข้อมูลเดิม) */
   const openEditModal = (ex: Exercise) => {
     setFormData({
       name: ex.name,
-      modality: ex.modality || "Strength", // Default to Strength if missing
+      modality: ex.modality || "Strength",
       muscleGroups: ex.muscleGroups || [],
       movementPattern: ex.movementPattern || "",
-      category: ex.trackingType || "strength", // Default tracking type
-      fields: ex.trackingFields || [], // Backend fields
+      category: ex.trackingType || "strength",
+      fields: ex.trackingFields || [],
       instructions: ex.instructions || "",
-      caloriesEstimate: ex.caloriesEstimate || "", // Load existing value
+      caloriesEstimate: ex.caloriesEstimate || "",
     });
     setIsEditing(true);
     setCurrentId(ex.id);
     setShowModal(true);
   };
 
-  // Filter Logic
   const filteredExercises = exercises.filter((exercise) => {
     const matchesSearch = exercise.name
       .toLowerCase()
@@ -269,8 +245,8 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
         .includes(modalityFilter.toLowerCase());
     const matchesMuscleGroup =
       muscleGroupFilter === "all" ||
-      (exercise.muscleGroups || []).some((group) =>
-        group.toLowerCase().includes(muscleGroupFilter.toLowerCase()),
+      (exercise.muscleGroups || []).some((g) =>
+        g.toLowerCase().includes(muscleGroupFilter.toLowerCase()),
       );
     return matchesSearch && matchesModality && matchesMuscleGroup;
   });
@@ -290,55 +266,101 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
     return modalityMap[key];
   };
 
+  const getCategoryLabel = (cat: string) => {
+    const map: Record<string, string> = {
+      "weight-training": "Weight Training",
+      cardio: "Cardio",
+      flexibility: "Flexibility",
+    };
+    return map[cat] || cat || "General";
+  };
+
+  const modalityBadgeClass = (color: string) => {
+    if (color === "badge-red") return "bg-red-50 text-red-700 border-0";
+    if (color === "badge-green") return "bg-green-50 text-green-700 border-0";
+    if (color === "badge-blue") return "bg-blue-50 text-blue-700 border-0";
+    return "bg-purple-50 text-purple-700 border-0";
+  };
+
+  const hasActiveFilter = modalityFilter !== "all";
+
+  /* ========================
+     LOADING
+  ======================== */
   if (loading) {
     return (
       <Card>
-        <CardHeader className="pb-4">
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-            <div className="flex gap-4 flex-1 w-full md:w-auto">
-              <Skeleton className="h-10 w-full md:w-[250px]" />
-              <Skeleton className="h-10 w-full md:w-[150px]" />
-            </div>
-            <Skeleton className="h-10 w-[120px]" />
+        <CardHeader className="pb-4 px-4 sm:px-6">
+          <div className="flex gap-2">
+            <Skeleton className="h-10 flex-1 max-w-sm" />
+            <Skeleton className="h-10 w-10 sm:w-[160px]" />
+            <Skeleton className="h-10 w-10 sm:w-[120px]" />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
+        <CardContent className="px-4 sm:px-6 space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton
+              key={i}
+              className="h-14 w-full rounded-xl"
+              style={{ opacity: 1 - i * 0.15 }}
+            />
+          ))}
         </CardContent>
       </Card>
     );
   }
 
+  /* ========================
+     MAIN
+  ======================== */
   return (
     <Card className="animate-in fade-in duration-500 rounded-2xl border-slate-200">
-      <CardHeader className="pb-4 border-b border-slate-100/60 mb-4 bg-slate-50/50 rounded-t-2xl">
-        <div className="flex flex-col gap-1 mb-4">
-          <CardTitle className="text-2xl font-bold text-navy-900">
+      {/* ─────────────────────────────────────────
+          HEADER
+          Mobile: Search + Filter toggle + Add btn
+          Desktop: Search | Modality select | Add btn
+      ───────────────────────────────────────── */}
+      <CardHeader className="pb-3 px-4 sm:px-6 border-b border-slate-100/60 bg-slate-50/50 rounded-t-2xl">
+        <div className="flex flex-col gap-1 mb-3">
+          <CardTitle className="text-xl sm:text-2xl font-bold text-navy-900">
             คลังท่าออกกำลังกาย
           </CardTitle>
-          <CardDescription className="text-slate-500">
+          <CardDescription className="text-slate-500 text-xs sm:text-sm hidden sm:block">
             จัดการ ค้นหา และแก้ไขท่าออกกำลังกายในระบบ
           </CardDescription>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="relative flex-1 w-full sm:max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
+
+        {/* Row 1: Search + Filter toggle + Add */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
             <Input
-              placeholder="ค้นหาชื่อท่าออกกำลังกาย..."
+              placeholder="ค้นหาชื่อท่า..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 mr-2 h-10 w-full rounded-xl border-slate-200"
+              className="pl-9 min-h-[44px] rounded-xl border-slate-200"
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mr-auto">
+          {/* Mobile: filter toggle */}
+          <Button
+            variant={hasActiveFilter ? "default" : "outline"}
+            size="icon"
+            className="sm:hidden min-w-[44px] min-h-[44px] rounded-xl flex-shrink-0"
+            onClick={() => setShowFilters(!showFilters)}
+            aria-label="Toggle filters"
+          >
+            {showFilters ? (
+              <X className="h-4 w-4" />
+            ) : (
+              <SlidersHorizontal className="h-4 w-4" />
+            )}
+          </Button>
+
+          {/* Desktop: modality filter inline */}
+          <div className="hidden sm:block">
             <Select value={modalityFilter} onValueChange={setModalityFilter}>
-              <SelectTrigger className="w-full sm:w-[160px] h-10 rounded-xl border-slate-200">
+              <SelectTrigger className="w-[160px] h-10 rounded-xl border-slate-200">
                 <SelectValue placeholder="ประเภท" />
               </SelectTrigger>
               <SelectContent>
@@ -350,15 +372,47 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
             </Select>
           </div>
 
-          <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-            <Button
-              onClick={openAddModal}
-              className="flex items-center gap-2 whitespace-nowrap bg-navy-900 text-white hover:bg-navy-800 rounded-xl h-10 px-4"
-            >
-              <Plus className="h-4 w-4" />
-              เพิ่มท่าใหม่
-            </Button>
+          {/* Add button */}
+          <Button
+            onClick={openAddModal}
+            className="flex items-center gap-1.5 whitespace-nowrap bg-primary text-primary-foreground hover:bg-primary/90 min-h-[44px] rounded-xl flex-shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden xs:inline sm:inline">เพิ่มท่าใหม่</span>
+          </Button>
+        </div>
+
+        {/* Row 2: Mobile collapsible filter */}
+        {showFilters && (
+          <div className="sm:hidden mt-2">
+            <Select value={modalityFilter} onValueChange={setModalityFilter}>
+              <SelectTrigger className="w-full min-h-[44px] rounded-xl border-slate-200">
+                <SelectValue placeholder="ประเภท" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ประเภททั้งหมด</SelectItem>
+                <SelectItem value="strength">Weight Training</SelectItem>
+                <SelectItem value="cardio">Cardio</SelectItem>
+                <SelectItem value="flexibility">Flexibility</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+        )}
+
+        {/* Count + active filter hint */}
+        <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-500">
+          <span>{filteredExercises.length} ท่า</span>
+          {hasActiveFilter && (
+            <span className="flex items-center gap-1">
+              •{" "}
+              <button
+                className="text-primary underline"
+                onClick={() => setModalityFilter("all")}
+              >
+                ล้าง filter
+              </button>
+            </span>
+          )}
         </div>
 
         <ExerciseForm
@@ -369,8 +423,132 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
         />
       </CardHeader>
 
-      <CardContent>
-        <div className="rounded-xl border border-slate-200 overflow-hidden">
+      {/* ─────────────────────────────────────────
+          MOBILE CARD VIEW  (< sm = 640px)
+      ───────────────────────────────────────── */}
+      <CardContent className="sm:hidden px-3 pb-4 pt-3">
+        {filteredExercises.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            <div className="inline-flex p-3 bg-slate-100 rounded-full mb-3">
+              <BookOpen className="h-6 w-6 text-slate-400" />
+            </div>
+            <p>
+              {searchTerm || hasActiveFilter
+                ? "ไม่พบข้อมูลที่ค้นหา"
+                : 'ยังไม่มีท่าออกกำลังกาย กด "เพิ่มท่าใหม่" เพื่อเริ่มต้น'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {filteredExercises.map((exercise) => {
+              const mb = getModalityBadge(exercise.modality);
+              return (
+                <div
+                  key={exercise.id}
+                  className="bg-muted/30 border rounded-xl overflow-hidden"
+                >
+                  {/* Tap → view details or select */}
+                  <button
+                    className="w-full flex items-center gap-3 p-3 text-left hover:bg-muted/50 transition-colors"
+                    onClick={() => {
+                      if (onSelect) {
+                        onSelect(exercise);
+                      } else {
+                        setViewExercise(exercise);
+                      }
+                    }}
+                  >
+                    <Avatar className="h-10 w-10 bg-orange-50 ring-1 ring-orange-100 flex-shrink-0">
+                      <AvatarFallback className="bg-transparent text-orange-600">
+                        <Dumbbell className="h-5 w-5" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="font-semibold text-sm text-navy-900 truncate">
+                        {exercise.name}
+                      </p>
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {getCategoryLabel(exercise.category)}
+                      </p>
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className={`text-[10px] px-1.5 flex-shrink-0 ${modalityBadgeClass(mb.color)}`}
+                    >
+                      {mb.label}
+                    </Badge>
+                  </button>
+
+                  {/* Bottom row: muscles + action */}
+                  <div className="flex items-center gap-2 px-3 pb-2.5 pt-0">
+                    <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+                      {(exercise.muscleGroups || []).slice(0, 2).map((g) => (
+                        <Badge
+                          key={g}
+                          variant="outline"
+                          className="text-[10px] px-1.5"
+                        >
+                          {g}
+                        </Badge>
+                      ))}
+                      {(exercise.muscleGroups || []).length > 2 && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 bg-slate-50"
+                        >
+                          +{(exercise.muscleGroups || []).length - 2}
+                        </Badge>
+                      )}
+                      {(exercise.muscleGroups || []).length === 0 && (
+                        <span className="text-[10px] text-slate-400">
+                          ไม่ระบุกล้ามเนื้อ
+                        </span>
+                      )}
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="min-h-[44px] min-w-[44px]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem
+                          className="gap-2 cursor-pointer text-blue-600 focus:text-blue-700 focus:bg-blue-50"
+                          onClick={() => openEditModal(exercise)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                          <span>แก้ไขข้อมูล</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="gap-2 cursor-pointer text-red-600 focus:text-red-700 focus:bg-red-50"
+                          onClick={() => {
+                            setExerciseToDelete(exercise);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span>ลบท่า</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+
+      {/* ─────────────────────────────────────────
+          DESKTOP TABLE VIEW  (>= sm = 640px)
+      ───────────────────────────────────────── */}
+      <CardContent className="hidden sm:block px-4 sm:px-6">
+        <div className="table-responsive rounded-xl border border-slate-200 overflow-hidden">
           <Table>
             <TableHeader className="bg-slate-50/80">
               <TableRow className="hover:bg-transparent">
@@ -386,7 +564,7 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
                 <TableHead className="font-semibold text-slate-600">
                   ประเภท
                 </TableHead>
-                <TableHead className="text-right"></TableHead>
+                <TableHead className="text-right w-[60px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -401,7 +579,7 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
                         <BookOpen className="h-6 w-6 text-slate-400" />
                       </div>
                       <p>
-                        {searchTerm || modalityFilter !== "all"
+                        {searchTerm || hasActiveFilter
                           ? "ไม่พบข้อมูลที่ค้นหา"
                           : 'ยังไม่มีท่าออกกำลังกาย คลิก "เพิ่มท่าใหม่" เพื่อเริ่มต้น'}
                       </p>
@@ -410,22 +588,23 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
                 </TableRow>
               ) : (
                 filteredExercises.map((exercise) => {
-                  const modalityBadge = getModalityBadge(exercise.modality);
+                  const mb = getModalityBadge(exercise.modality);
                   return (
                     <TableRow
                       key={exercise.id}
-                      className={`hover:bg-slate-50 transition-colors ${onSelect ? "cursor-pointer" : "cursor-pointer"}`}
+                      className="hover:bg-slate-50 transition-colors cursor-pointer"
                       onClick={() => {
                         if (onSelect) {
                           onSelect(exercise);
                         } else {
-                          openEditModal(exercise);
+                          setViewExercise(exercise);
                         }
                       }}
                     >
+                      {/* Name + category */}
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10 flex items-center justify-center bg-orange-50 ring-1 ring-orange-100">
+                          <Avatar className="h-10 w-10 bg-orange-50 ring-1 ring-orange-100 flex-shrink-0">
                             <AvatarFallback className="bg-transparent text-orange-600">
                               <Dumbbell className="h-5 w-5" />
                             </AvatarFallback>
@@ -435,34 +614,32 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
                               {exercise.name}
                             </p>
                             <p className="text-xs text-slate-500 mt-0.5">
-                              {exercise.category === "weight-training"
-                                ? "Weight Training"
-                                : exercise.category === "cardio"
-                                  ? "Cardio"
-                                  : exercise.category === "flexibility"
-                                    ? "Flexibility"
-                                    : exercise.category || "General"}
+                              {getCategoryLabel(exercise.category)}
                             </p>
                           </div>
                         </div>
                       </TableCell>
+
+                      {/* Movement pattern */}
                       <TableCell>
                         <span className="text-sm font-medium text-slate-600">
                           {exercise.movementPattern || "-"}
                         </span>
                       </TableCell>
+
+                      {/* Muscle groups */}
                       <TableCell>
                         <div className="flex flex-wrap gap-1.5">
                           {(exercise.muscleGroups || []).length > 0 ? (
                             (exercise.muscleGroups || [])
                               .slice(0, 2)
-                              .map((group) => (
+                              .map((g) => (
                                 <Badge
-                                  key={group}
+                                  key={g}
                                   variant="outline"
                                   className="text-xs font-medium text-slate-600 bg-white border-slate-200"
                                 >
-                                  {group}
+                                  {g}
                                 </Badge>
                               ))
                           ) : (
@@ -478,22 +655,18 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
                           )}
                         </div>
                       </TableCell>
+
+                      {/* Modality badge */}
                       <TableCell>
                         <Badge
                           variant="secondary"
-                          className={`${
-                            modalityBadge.color === "badge-red"
-                              ? "bg-red-50 text-red-700 hover:bg-red-100"
-                              : modalityBadge.color === "badge-green"
-                                ? "bg-green-50 text-green-700 hover:bg-green-100"
-                                : modalityBadge.color === "badge-blue"
-                                  ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
-                                  : "bg-purple-50 text-purple-700 hover:bg-purple-100"
-                          } border-0`}
+                          className={modalityBadgeClass(mb.color)}
                         >
-                          {modalityBadge.label}
+                          {mb.label}
                         </Badge>
                       </TableCell>
+
+                      {/* Actions */}
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -540,11 +713,22 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
         </div>
       </CardContent>
 
+      {/* ─────────────────────────────────────────
+          Delete Confirmation Dialog — mobile-safe
+      ───────────────────────────────────────── */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="rounded-2xl">
+        <AlertDialogContent
+          className="w-[calc(100%-2rem)] max-w-sm sm:max-w-md rounded-2xl"
+          aria-describedby="delete-exercise-description"
+        >
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl">ยืนยันการลบ</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-500 text-base">
+            <AlertDialogTitle className="text-lg sm:text-xl">
+              ยืนยันการลบ
+            </AlertDialogTitle>
+            <AlertDialogDescription
+              id="delete-exercise-description"
+              className="text-slate-500 text-sm sm:text-base"
+            >
               คุณแน่ใจหรือไม่ว่าต้องการลบ{" "}
               <span className="font-semibold text-navy-900">
                 "{exerciseToDelete?.name}"
@@ -553,12 +737,12 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
               และอาจส่งผลต่อโปรแกรมที่มีท่านี้อยู่
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="mt-4">
-            <AlertDialogCancel className="font-medium rounded-xl">
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2 mt-2">
+            <AlertDialogCancel className="min-h-[44px] sm:min-h-0 font-medium rounded-xl">
               ยกเลิก
             </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl"
+              className="bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl min-h-[44px] sm:min-h-0"
               onClick={() => {
                 if (exerciseToDelete) {
                   handleDeleteExercise(exerciseToDelete.id);
@@ -573,42 +757,43 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* View Details Dialog */}
+      {/* ─────────────────────────────────────────
+          View Details Dialog — mobile-safe
+      ───────────────────────────────────────── */}
       <Dialog
         open={!!viewExercise}
         onOpenChange={(open) => !open && setViewExercise(null)}
       >
-        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-xl max-h-[85vh] overflow-y-auto rounded-2xl">
           <DialogHeader>
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-orange-100 rounded-xl text-orange-600">
-                {/* Dynamic Icon based on category could go here */}
-                <BookOpen className="h-6 w-6" />
+              <div className="p-2.5 bg-orange-100 rounded-xl text-orange-600 flex-shrink-0">
+                <BookOpen className="h-5 w-5 sm:h-6 sm:w-6" />
               </div>
-              <div>
-                <DialogTitle className="text-xl font-bold text-navy-900">
+              <div className="min-w-0">
+                <DialogTitle className="text-lg sm:text-xl font-bold text-navy-900 truncate">
                   {viewExercise?.name}
                 </DialogTitle>
-                <DialogDescription className="text-slate-500">
+                <DialogDescription className="text-slate-500 text-xs sm:text-sm">
                   {viewExercise?.modality} • {viewExercise?.category}
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
-          <div className="space-y-6 py-2">
+          <div className="space-y-5 py-2">
             {/* Instructions */}
             <div className="space-y-2">
-              <h4 className="text-sm font-bold text-navy-900 uppercase tracking-wide">
+              <h4 className="text-xs font-bold text-navy-900 uppercase tracking-wide">
                 คำแนะนำ / วิธีปฏิบัติ
               </h4>
-              <div className="bg-slate-50 p-4 rounded-xl text-slate-600 text-sm leading-relaxed whitespace-pre-line border border-slate-100">
+              <div className="bg-slate-50 p-3 sm:p-4 rounded-xl text-slate-600 text-sm leading-relaxed whitespace-pre-line border border-slate-100">
                 {viewExercise?.instructions || "ไม่มีคำแนะนำเพิ่มเติม"}
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {/* Muscle Groups */}
+            {/* Muscle Groups + Movement Pattern */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                   กล้ามเนื้อที่ใช้
@@ -620,7 +805,7 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
                       <Badge
                         key={group}
                         variant="secondary"
-                        className="bg-navy-50 text-navy-700 hover:bg-navy-100"
+                        className="text-xs"
                       >
                         {group}
                       </Badge>
@@ -631,7 +816,6 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
                 </div>
               </div>
 
-              {/* Movement Pattern */}
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                   รูปแบบการเคลื่อนไหว
@@ -661,6 +845,37 @@ export default function ExerciseLibrary({ onSelect }: ExerciseLibraryProps) {
                   </div>
                 </div>
               )}
+
+            {/* Action buttons in dialog */}
+            {!onSelect && (
+              <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 min-h-[44px] sm:min-h-0 rounded-xl border-blue-200 text-blue-600 hover:bg-blue-50"
+                  onClick={() => {
+                    setViewExercise(null);
+                    openEditModal(viewExercise!);
+                  }}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  แก้ไขข้อมูล
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 min-h-[44px] sm:min-h-0 rounded-xl border-red-200 text-red-600 hover:bg-red-50"
+                  onClick={() => {
+                    setViewExercise(null);
+                    setExerciseToDelete(viewExercise);
+                    setDeleteDialogOpen(true);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  ลบท่า
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

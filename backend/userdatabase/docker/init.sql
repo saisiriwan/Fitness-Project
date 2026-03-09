@@ -214,6 +214,7 @@ CREATE TABLE IF NOT EXISTS schedules (
     rating INTEGER,
     feedback TEXT,
     status VARCHAR(50),
+    session_type VARCHAR(50) DEFAULT 'workout',
     summary TEXT,
     notes TEXT,
     total_volume_kg FLOAT DEFAULT 0,

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { getWsUrl } from "@/lib/api";
 
-const WS_URL = "ws://localhost:8080/ws"; // Adjust if needed via env
+const WS_URL = getWsUrl();
 
 export const useWebSocket = () => {
   const [isConnected, setIsConnected] = useState(false);

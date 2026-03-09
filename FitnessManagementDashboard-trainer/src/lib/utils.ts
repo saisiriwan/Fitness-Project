@@ -31,3 +31,18 @@ export function toRFC3339String(date: Date): string {
     pad(minutesOffset)
   );
 }
+
+export function parseLocalTimestamp(isoStr: string): Date {
+  if (!isoStr) return new Date();
+  // Strip 'Z' or offset to force JS to parse it as literal local time
+  const cleanStr = isoStr.replace(/Z$/, '').replace(/(\+|-)\d{2}:\d{2}$/, '');
+  return new Date(cleanStr);
+}
+
+export function toNaiveISOString(date: Date): string {
+  const pad = (n: number) => (n < 10 ? "0" + n : n);
+  return (
+    date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) +
+    "T" + pad(date.getHours()) + ":" + pad(date.getMinutes()) + ":" + pad(date.getSeconds()) + "Z"
+  );
+}

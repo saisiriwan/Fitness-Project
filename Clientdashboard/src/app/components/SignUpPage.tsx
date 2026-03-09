@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "./ui/card";
 import { Dumbbell, ArrowLeft } from "lucide-react";
+import { getApiBaseUrl } from "@/lib/api";
 
 interface SignUpPageProps {
   onSignUp: () => void;
@@ -64,8 +65,8 @@ export function SignUpPage({ onSignUp, onBackToLogin }: SignUpPageProps) {
 
   const handleGoogleSignUp = () => {
     // Redirect to Backend for Google Auth (SignUp flow is handled by the same Google Login endpoint)
-    window.location.href =
-      "http://localhost:8080/api/v1/auth/google/login?role=trainee";
+    const baseUrl = getApiBaseUrl();
+    window.location.href = `${baseUrl}/auth/google/login?role=trainee`;
   };
 
   return (

@@ -11,37 +11,37 @@
   --card-foreground: oklch(0.25 0.025 215);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.25 0.025 215);
-  --primary: oklch(0.32 0.10 250);
+  --primary: oklch(0.32 0.1 250);
   --primary-foreground: oklch(0.98 0.002 250);
   --secondary: oklch(0.92 0.005 215);
   --secondary-foreground: oklch(0.25 0.025 215);
   --muted: oklch(0.96 0.003 215);
-  --muted-foreground: oklch(0.50 0.015 215);
-  --accent: oklch(0.70 0.17 40);
+  --muted-foreground: oklch(0.5 0.015 215);
+  --accent: oklch(0.7 0.17 40);
   --accent-foreground: oklch(0.98 0.002 40);
-  --destructive: oklch(0.55 0.20 25);
+  --destructive: oklch(0.55 0.2 25);
   --destructive-foreground: oklch(0.98 0.002 25);
   --border: oklch(0.92 0.005 215);
   --input: transparent;
   --input-background: oklch(0.99 0.001 215);
-  --switch-background: oklch(0.90 0.008 215);
+  --switch-background: oklch(0.9 0.008 215);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: oklch(0.70 0.17 40);
-  --chart-1: oklch(0.70 0.17 40);
-  --chart-2: oklch(0.32 0.10 250);
+  --ring: oklch(0.7 0.17 40);
+  --chart-1: oklch(0.7 0.17 40);
+  --chart-2: oklch(0.32 0.1 250);
   --chart-3: oklch(0.75 0.15 30);
-  --chart-4: oklch(0.40 0.12 240);
+  --chart-4: oklch(0.4 0.12 240);
   --chart-5: oklch(0.68 0.14 50);
   --radius: 0.75rem;
   --sidebar: oklch(0.98 0.002 215);
   --sidebar-foreground: oklch(0.25 0.025 215);
-  --sidebar-primary: oklch(0.32 0.10 250);
+  --sidebar-primary: oklch(0.32 0.1 250);
   --sidebar-primary-foreground: oklch(0.98 0.002 250);
   --sidebar-accent: oklch(0.96 0.003 215);
-  --sidebar-accent-foreground: oklch(0.32 0.10 250);
+  --sidebar-accent-foreground: oklch(0.32 0.1 250);
   --sidebar-border: oklch(0.92 0.005 215);
-  --sidebar-ring: oklch(0.70 0.17 40);
+  --sidebar-ring: oklch(0.7 0.17 40);
 }
 
 .dark {
@@ -52,34 +52,34 @@
   --card-foreground: oklch(0.98 0.002 0);
   --popover: oklch(0.18 0.04 250);
   --popover-foreground: oklch(0.98 0.002 0);
-  --primary: oklch(0.70 0.17 40);
+  --primary: oklch(0.7 0.17 40);
   --primary-foreground: oklch(0.15 0.04 250);
   --secondary: oklch(0.25 0.04 215);
   --secondary-foreground: oklch(0.98 0.002 0);
   --muted: oklch(0.22 0.04 215);
-  --muted-foreground: oklch(0.70 0.015 215);
-  --accent: oklch(0.70 0.17 40);
+  --muted-foreground: oklch(0.7 0.015 215);
+  --accent: oklch(0.7 0.17 40);
   --accent-foreground: oklch(0.15 0.04 250);
-  --destructive: oklch(0.55 0.20 25);
+  --destructive: oklch(0.55 0.2 25);
   --destructive-foreground: oklch(0.98 0.002 0);
   --border: oklch(0.25 0.04 215);
   --input: oklch(0.22 0.04 215);
-  --ring: oklch(0.70 0.17 40);
+  --ring: oklch(0.7 0.17 40);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --chart-1: oklch(0.70 0.17 40);
+  --chart-1: oklch(0.7 0.17 40);
   --chart-2: oklch(0.45 0.12 250);
   --chart-3: oklch(0.75 0.15 30);
-  --chart-4: oklch(0.50 0.12 240);
+  --chart-4: oklch(0.5 0.12 240);
   --chart-5: oklch(0.68 0.14 50);
   --sidebar: oklch(0.16 0.04 250);
   --sidebar-foreground: oklch(0.98 0.002 0);
-  --sidebar-primary: oklch(0.70 0.17 40);
+  --sidebar-primary: oklch(0.7 0.17 40);
   --sidebar-primary-foreground: oklch(0.15 0.04 250);
-  --sidebar-accent: oklch(0.20 0.04 215);
-  --sidebar-accent-foreground: oklch(0.70 0.17 40);
+  --sidebar-accent: oklch(0.2 0.04 215);
+  --sidebar-accent-foreground: oklch(0.7 0.17 40);
   --sidebar-border: oklch(0.22 0.04 215);
-  --sidebar-ring: oklch(0.70 0.17 40);
+  --sidebar-ring: oklch(0.7 0.17 40);
 }
 
 @layer base {
@@ -157,6 +157,27 @@ html {
     padding-bottom: env(safe-area-inset-bottom);
   }
 
+  /* Clears the fixed bottom nav (64px) + safe area on all mobile pages */
+  .content-mobile-safe {
+    @apply pb-24 lg:pb-0;
+    /* Ensure content never hides below iOS home indicator */
+    padding-bottom: max(
+      theme(spacing.24),
+      calc(4rem + env(safe-area-inset-bottom))
+    );
+  }
+
+  @media (min-width: 1024px) {
+    .content-mobile-safe {
+      padding-bottom: 0;
+    }
+  }
+
+  /* Horizontal scroll wrapper for data tables on small screens */
+  .table-responsive {
+    @apply overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0;
+  }
+
   /* Smooth scrolling */
   @media (prefers-reduced-motion: no-preference) {
     html {
@@ -177,8 +198,13 @@ html {
   }
 
   /* Smooth transitions for interactive elements */
-  button, a, input, select, textarea {
-    transition-property: color, background-color, border-color, transform, box-shadow;
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    transition-property:
+      color, background-color, border-color, transform, box-shadow;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 150ms;
   }
@@ -223,7 +249,9 @@ select {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--muted-foreground); /* removed opacity modifier for simplicity or use color-mix if needed, but var is oklch string */
+  background: var(
+    --muted-foreground
+  ); /* removed opacity modifier for simplicity or use color-mix if needed, but var is oklch string */
   border-radius: 4px;
 }
 
@@ -283,11 +311,12 @@ select {
   }
 
   .nav-link {
-    @apply flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
+    /* min-h ensures 44px touch target on all devices */
+    @apply flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-md text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
   }
 
   .nav-link.active {
-   @apply bg-sidebar-primary text-sidebar-primary-foreground shadow-md;
+    @apply bg-sidebar-primary text-sidebar-primary-foreground shadow-md;
   }
 
   .nav-link.collapsed {
@@ -353,7 +382,8 @@ select {
   }
 
   .mobile-nav-item {
-    @apply flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-colors;
+    /* min-h-[44px] ensures 44px touch target per WCAG 2.5.5 */
+    @apply flex flex-col items-center justify-center gap-1 min-h-[44px] text-muted-foreground hover:text-primary transition-colors;
   }
 
   .mobile-nav-item.active {

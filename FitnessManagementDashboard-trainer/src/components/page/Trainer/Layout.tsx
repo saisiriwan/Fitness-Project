@@ -22,7 +22,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import {
   Tooltip,
   TooltipContent,
@@ -166,27 +172,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (!user?.picture) return;
 
     // #region agent log
-    fetch(
-      "http://127.0.0.1:7288/ingest/7fcceece-6d36-453b-864c-342a0eb56a3b",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "16d09d",
-        },
-        body: JSON.stringify({
-          sessionId: "16d09d",
-          runId: "pre-fix",
-          hypothesisId: "H3",
-          location: "Layout.tsx:171",
-          message: "Layout avatar render picture",
-          data: {
-            picture: user.picture,
-          },
-          timestamp: Date.now(),
-        }),
+    fetch("http://127.0.0.1:7288/ingest/7fcceece-6d36-453b-864c-342a0eb56a3b", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "16d09d",
       },
-    ).catch(() => {});
+      body: JSON.stringify({
+        sessionId: "16d09d",
+        runId: "pre-fix",
+        hypothesisId: "H3",
+        location: "Layout.tsx:171",
+        message: "Layout avatar render picture",
+        data: {
+          picture: user.picture,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
     // #endregion
   }, [user?.picture]);
 
@@ -280,6 +283,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 side="left"
                 className="p-0 w-72 bg-navy-900 border-r-navy-800 text-white"
               >
+                {/* sr-only title required by Radix UI for screen reader accessibility */}
+                <SheetHeader className="sr-only">
+                  <SheetTitle>Navigation Menu</SheetTitle>
+                </SheetHeader>
                 <SidebarContent />
               </SheetContent>
             </Sheet>

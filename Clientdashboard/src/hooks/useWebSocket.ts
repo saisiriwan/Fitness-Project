@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { getWsUrl } from "@/lib/api";
 
-const WS_URL = "ws://localhost:8080/ws"; // Adjust if needed via env
+const WS_URL = getWsUrl();
 
 export const useWebSocket = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<any>(null);
   const ws = useRef<WebSocket | null>(null);
   const reconnectTimeout = useRef<number | null>(null);
+  const isMounted = useRef(true); // Bug 1 fix: track mount state to prevent reconnect after unmount
 
   const connect = useCallback(() => {
     if (ws.current?.readyState === WebSocket.OPEN) return;
@@ -37,7 +39,8 @@ export const useWebSocket = () => {
       console.log("WebSocket Disconnected");
       setIsConnected(false);
       ws.current = null;
-      // Auto reconnect
+      // Bug 1 fix: only reconnect if component is still mounted
+      if (!isMounted.current) return;
       reconnectTimeout.current = window.setTimeout(() => {
         console.log("Attempting Reconnect...");
         connect();
@@ -51,10 +54,12 @@ export const useWebSocket = () => {
   }, []);
 
   useEffect(() => {
+    isMounted.current = true;
     connect();
     return () => {
-      ws.current?.close();
+      isMounted.current = false; // Bug 1 fix: flag unmount BEFORE closing socket
       if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+      ws.current?.close();
     };
   }, [connect]);
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { parseLocalTimestamp, toRFC3339String } from "@/lib/utils";
 import {
   X,
   Plus,
@@ -328,10 +329,14 @@ export default function AddSession() {
       return toast.error("กรุณาระบุวันและเวลา");
 
     try {
-      const startDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`);
+      const startDateTime = parseLocalTimestamp(
+        `${scheduleDate}T${scheduleTime}:00`,
+      );
       let endDateTime;
       if (scheduleEndTime) {
-        endDateTime = new Date(`${scheduleDate}T${scheduleEndTime}:00`);
+        endDateTime = parseLocalTimestamp(
+          `${scheduleDate}T${scheduleEndTime}:00`,
+        );
       } else {
         endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
       }
@@ -339,8 +344,8 @@ export default function AddSession() {
       const payload = {
         title: sessionTitle,
         client_id: parseInt(selectedClientId),
-        start_time: startDateTime.toISOString(),
-        end_time: endDateTime.toISOString(),
+        start_time: toRFC3339String(startDateTime),
+        end_time: toRFC3339String(endDateTime),
         status: "scheduled",
         summary:
           sectionFormat !== "straight-sets" ? `Format: ${sectionFormat}` : "",

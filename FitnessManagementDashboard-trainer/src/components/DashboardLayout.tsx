@@ -12,7 +12,6 @@ import {
   Menu,
   ChevronLeft,
   ChevronRight,
-  Bell,
   TrendingUp,
   FileText,
 } from "lucide-react";
@@ -25,7 +24,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import {
   Tooltip,
   TooltipContent,
@@ -303,7 +308,12 @@ export default function DashboardLayout({
           <header className="header-mobile">
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="-ml-2">
+                {/* min-w/h-[44px] → satisfies 44×44px touch target requirement */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="-ml-2 min-w-[44px] min-h-[44px]"
+                >
                   <Menu className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
@@ -311,6 +321,10 @@ export default function DashboardLayout({
                 side="left"
                 className="p-0 w-[280px] bg-navy-900 border-r-navy-800"
               >
+                {/* sr-only title required by Radix UI for screen reader accessibility */}
+                <SheetHeader className="sr-only">
+                  <SheetTitle>Navigation Menu</SheetTitle>
+                </SheetHeader>
                 <SidebarContent navigation={navigation} title={appTitle} />
               </SheetContent>
             </Sheet>
@@ -321,7 +335,11 @@ export default function DashboardLayout({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="-mr-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="-mr-2 min-w-[44px] min-h-[44px]"
+                >
                   <Avatar className="h-8 w-8 border border-border">
                     <AvatarImage src={user?.picture} alt={user?.name} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-xs">
@@ -350,7 +368,8 @@ export default function DashboardLayout({
           </header>
 
           {/* Page Content */}
-          <main className="page-content">
+          {/* content-mobile-safe: adds pb-24 on mobile to clear the 64px fixed bottom nav + safe-area-inset */}
+          <main className="page-content content-mobile-safe">
             <div className="content-container">{children}</div>
           </main>
 

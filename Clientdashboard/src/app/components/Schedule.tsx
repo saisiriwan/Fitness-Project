@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { LogOut } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { LogOut, Bell } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { ProgressView } from "./ProgressView";
 import { SessionCardsView } from "./SessionCardsView";
@@ -29,27 +29,20 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [metrics, setMetrics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // --- WebSocket Integration ---
   const { lastMessage } = useWebSocket();
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      // Don't set loading on background refresh to avoid flickering
-      // setLoading(true);
-
-      // 1. Fetch User
       const currentUser = await clientService.getMe();
       setUser(currentUser);
 
-      // 2. Fetch Client Data (Schedules/Sessions)
       if (currentUser && currentUser.id) {
         try {
-          // Use getMySchedules to fetch schedules via token (safer than using ID)
           const sessions = await clientService.getMySchedules();
           setSchedules(sessions || []);
 
-          // 3. Fetch Metrics (Weight History)
           const weightMetrics = await clientService.getClientMetrics(
             currentUser.id,
             "weight",
@@ -69,31 +62,28 @@ export function Dashboard({ onLogout }: DashboardProps) {
         setLoading(false);
         return;
       }
-
       console.error("Failed to load user profile", error);
       toast.error("ไม่สามารถโหลดข้อมูลผู้ใช้ได้");
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    setLoading(true); // Initial Load
-    fetchData();
   }, []);
 
-  // WebSocket Listener
+  useEffect(() => {
+    setLoading(true);
+    fetchData();
+  }, [fetchData]);
+
   useEffect(() => {
     if (
       lastMessage &&
       (lastMessage.type === "SESSION_UPDATE" ||
         lastMessage.type === "PROGRAM_UPDATE")
     ) {
-      console.log("WebSocket Update Received:", lastMessage);
       fetchData();
       toast.info("ข้อมูลมีการอัปเดต", { id: "ws-update-toast" });
     }
-  }, [lastMessage]);
+  }, [lastMessage, fetchData]);
 
   const handleLogout = async () => {
     try {
@@ -101,28 +91,54 @@ export function Dashboard({ onLogout }: DashboardProps) {
       onLogout();
     } catch (error) {
       console.error("Logout failed", error);
-      onLogout(); // Force logout on frontend anyway
+      onLogout();
     }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-10 w-10 border-[3px] border-[#FF6B35]/20 border-t-[#FF6B35]" />
+          <span className="text-sm text-muted-foreground font-medium">
+            กำลังโหลด...
+          </span>
+        </div>
       </div>
     );
   }
 
+  const initials = user?.name?.charAt(0)?.toUpperCase() ?? "?";
+
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      {/* Sidebar (Desktop only — lg+) */}
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onCollapsedChange={setIsSidebarCollapsed}
+      />
 
       {/* Main Content Wrapper */}
-      <div className="flex-1 lg:ml-56 flex flex-col min-h-screen transition-all duration-300 ease-in-out">
-        {/* Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 px-6 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex items-center gap-4 ml-auto">
+      <div
+        className={`
+          flex-1 flex flex-col min-h-screen
+          transition-[margin] duration-300 ease-in-out
+          ${isSidebarCollapsed ? "lg:ml-[72px]" : "lg:ml-56"}
+        `}
+      >
+        {/* ── Desktop sticky header ── */}
+        <header className="hidden lg:flex sticky top-0 z-30 h-16 items-center gap-4 border-b bg-background/95 px-6 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex items-center gap-3 ml-auto">
+            {/* Notification bell placeholder */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full h-9 w-9 text-muted-foreground"
+            >
+              <Bell className="h-4 w-4" />
+            </Button>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -131,8 +147,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 >
                   <Avatar className="h-10 w-10 border border-border">
                     <AvatarImage src={user?.avatar_url} alt={user?.name} />
-                    <AvatarFallback className="bg-primary text-primary-foreground font-medium">
-                      {user?.name?.charAt(0)?.toUpperCase()}
+                    <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                      {initials}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -159,37 +175,81 @@ export function Dashboard({ onLogout }: DashboardProps) {
           </div>
         </header>
 
-        {/* Main Content Area */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-20 lg:pb-8">
-          {activeTab === "feed" && (
-            <DashboardOverview
-              schedules={schedules}
-              metrics={metrics}
-              user={user}
-              lastMessage={lastMessage}
-            />
-          )}
+        {/* ── Main Content ── */}
+        <main
+          className="flex-1 overflow-y-auto"
+          style={{
+            paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))",
+          }}
+        >
+          {/* Mobile greeting banner */}
+          <div className="lg:hidden sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border/60 px-4 py-3 flex items-center justify-between shadow-sm">
+            <div>
+              <p className="text-xs text-muted-foreground font-medium leading-none mb-0.5">
+                สวัสดี 👋
+              </p>
+              <p className="text-base font-bold text-foreground leading-none truncate max-w-[200px]">
+                {user?.name || "Trainee"}
+              </p>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35]">
+                  <Avatar className="h-9 w-9 border-2 border-[#FF6B35]/30">
+                    <AvatarImage src={user?.avatar_url} alt={user?.name} />
+                    <AvatarFallback className="bg-[#003366] text-white font-semibold text-sm">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-52" align="end">
+                <div className="flex flex-col space-y-0.5 p-2">
+                  <p className="text-sm font-medium leading-none">
+                    {user?.name || "Trainee User"}
+                  </p>
+                  <p className="text-xs leading-none text-muted-foreground">
+                    {user?.email || ""}
+                  </p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>ออกจากระบบ</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
-          {activeTab === "exercises" && <ProgressView user={user} />}
-
-          {/* Note: 'profile' tab in Sidebar currently maps to SessionCardsView in original code */}
-          {activeTab === "profile" && (
-            // Passing schedules as 'cards' for now, SessionCardsView might need adaptation
-            // or we filter schedules to only show completed ones with feedback
-            <SessionCardsView
-              cards={
-                schedules.filter(
-                  (s: any) =>
-                    (s.status === "completed" || s.status === "reviewed") &&
-                    s.type !== "appointment",
-                ) as any
-              }
-            />
-          )}
-
-          {activeTab === "settings" && (
-            <SettingsView user={user} onLogout={handleLogout} />
-          )}
+          {/* Page content */}
+          <div className="p-4 sm:p-6 lg:p-8 space-y-4">
+            {activeTab === "feed" && (
+              <DashboardOverview
+                schedules={schedules}
+                metrics={metrics}
+                user={user}
+                lastMessage={lastMessage}
+              />
+            )}
+            {activeTab === "exercises" && <ProgressView user={user} />}
+            {activeTab === "profile" && (
+              <SessionCardsView
+                cards={
+                  schedules.filter(
+                    (s: any) =>
+                      (s.status === "completed" || s.status === "reviewed") &&
+                      s.type !== "appointment",
+                  ) as any
+                }
+              />
+            )}
+            {activeTab === "settings" && (
+              <SettingsView user={user} onLogout={handleLogout} />
+            )}
+          </div>
         </main>
       </div>
     </div>

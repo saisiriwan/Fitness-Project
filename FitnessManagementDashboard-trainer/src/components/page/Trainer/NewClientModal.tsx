@@ -110,15 +110,25 @@ export default function NewClientModal({
       }
     } catch (err: any) {
       console.error("Error creating client:", err);
-      const errorMsg =
-        err.response?.data?.error || "เกิดข้อผิดพลาดในการเพิ่มลูกเทรน";
 
-      // Handle explicit conflict
-      if (err.response?.status === 409) {
-        toast.error("อีเมลนี้มีอยู่ในระบบแล้ว");
-      } else {
-        toast.error(errorMsg);
-      }
+      const rawError: string = err.response?.data?.error ?? "";
+      const status: number = err.response?.status;
+
+      const getThaiErrorMessage = (): string => {
+        if (
+          status === 409 ||
+          rawError.includes("duplicate key") ||
+          rawError.includes("unique_email")
+        ) {
+          return "อีเมลนี้ถูกใช้งานแล้วในระบบ กรุณาตรวจสอบรายชื่อลูกเทรนที่มีอยู่ หรือใช้อีเมลอื่น";
+        }
+        if (status === 400)
+          return "ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบแบบฟอร์มอีกครั้ง";
+        if (status === 401) return "ไม่มีสิทธิ์ดำเนินการ กรุณาเข้าสู่ระบบใหม่";
+        return "เกิดข้อผิดพลาดในการเพิ่มลูกเทรน กรุณาลองใหม่อีกครั้ง";
+      };
+
+      toast.error(getThaiErrorMessage());
     } finally {
       setLoading(false);
       setShowDuplicateAlert(false);

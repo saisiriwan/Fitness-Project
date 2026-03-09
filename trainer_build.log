@@ -1,0 +1,27 @@
+
+> Fitness Management Dashboard@0.1.0 build
+> vite build
+
+(node:10580) ExperimentalWarning: CommonJS module c:\src\Final_project\Fitness-project\FitnessManagementDashboard-trainer\vite.config.ts is loading ES Module c:\src\Final_project\Fitness-project\FitnessManagementDashboard-trainer\node_modules\vite\dist\node\index.js using require().
+Support for loading ES Module in require() is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[36mvite v6.3.5 [32mbuilding for production...[36m[39m
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+transforming...
+[32m✓[39m 64 modules transformed.
+[31m✗[39m Build failed in 2.41s
+[31merror during build:
+[31m[vite]: Rollup failed to resolve import "src/components/ui/alert-dialog" from "C:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/src/components/page/Trainer/EditClientModal.tsx".
+This is most likely unintended because it can break your application at runtime.
+If you do want to externalize this module explicitly add it to
+`build.rollupOptions.external`[31m
+    at viteLog (file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:46345:15)
+    at file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:46403:18
+    at onwarn (c:\src\Final_project\Fitness-project\FitnessManagementDashboard-trainer\node_modules\@vitejs\plugin-react-swc\index.cjs:113:7)
+    at file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:46401:7
+    at onRollupLog (file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:46393:5)
+    at onLog (file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:46043:7)
+    at file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/node_modules/rollup/dist/es/shared/node-entry.js:20961:32
+    at Object.logger [as onLog] (file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/node_modules/rollup/dist/es/shared/node-entry.js:22848:9)
+    at ModuleLoader.handleInvalidResolvedId (file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/node_modules/rollup/dist/es/shared/node-entry.js:21592:26)
+    at file:///c:/src/Final_project/Fitness-project/FitnessManagementDashboard-trainer/node_modules/rollup/dist/es/shared/node-entry.js:21550:26[39m

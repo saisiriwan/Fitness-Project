@@ -50,7 +50,7 @@ export const normalizeTrackingFieldKey = (field: string): string => {
   // Custom mappings for variations
   if (lower.includes("dist(l)") || lower.includes("distance-long") || lower === "distance (long)") return "distance_long";
   if (lower.includes("dist(s)") || lower.includes("distance-short") || lower === "distance (short)") return "distance_short";
-  if (lower === "time") return "time";
+  if (lower === "time" || lower.includes("time (เวลา)") || lower.includes("เวลา")) return "time";
   if (lower === "reps") return "reps";
   if (lower.includes("heart rate")) return "heart_rate";
   if (lower === "%1rm" || lower === "one_rm") return "one_rm";

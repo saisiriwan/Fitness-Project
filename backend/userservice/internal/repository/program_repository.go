@@ -440,10 +440,15 @@ func (r *programRepository) AssignProgramToClients(programID int, clientIDs []in
 	}
 
 	// Calculate target dates
-	start, err := time.Parse("2006-01-02", startDate)
+	loc, err := time.LoadLocation("Asia/Bangkok")
+	if err != nil {
+		log.Printf("[WARN] Failed to load location Asia/Bangkok, defaulting to UTC: %v", err)
+		loc = time.UTC
+	}
+	start, err := time.ParseInLocation("2006-01-02", startDate, loc)
 	if err != nil {
 		log.Printf("[WARN] Invalid start date format, defaulting to today: %v", err)
-		start = time.Now()
+		start = time.Now().In(loc)
 	}
 	end := start.AddDate(0, 0, program.DurationWeeks*7)
 
@@ -611,10 +616,35 @@ func (r *programRepository) AssignProgramToClients(programID int, clientIDs []in
 			}
 
 			if !hasExercises {
-				continue // Skip creating a schedule for rest days or empty days
+				if !day.IsRestDay {
+					continue // Skip creating a schedule for completely empty days that are not rest days
+				}
+
+				// Calculate specific start/end times even for a rest day to anchor it to the date
+				sTime := parseTime(scheduleDate, startTime, 10) // Default 10:00
+				eTime := parseTime(scheduleDate, endTime, 11)   // Default 11:00
+
+				// It IS a rest day, so create a lightweight schedule with session_type = 'rest-day'
+				var scheduleID int
+				err := tx.QueryRow(`
+					INSERT INTO schedules (
+						client_id, trainer_id, program_id, program_day_id, title,
+						start_time, end_time, status, session_type, created_at
+					) VALUES ($1, $2, $3, $4, $5, $6, $7, 'scheduled', 'rest-day', NOW())
+					RETURNING id`,
+					clientID, program.TrainerID, childProgramID, newDayID, "Rest Day",
+					sTime, eTime,
+				).Scan(&scheduleID)
+
+				if err != nil {
+					logErrorToDisk("Failed to insert rest-day schedule in assign program", err)
+					tx.Rollback()
+					return err
+				}
+				continue // We do not create session_logs for a rest day
 			}
 
-			// Calculate specific start/end times
+			// Calculation for normal days with exercises
 			sTime := parseTime(scheduleDate, startTime, 10) // Default 10:00
 			eTime := parseTime(scheduleDate, endTime, 11)   // Default 11:00
 
@@ -622,8 +652,8 @@ func (r *programRepository) AssignProgramToClients(programID int, clientIDs []in
 			err := tx.QueryRow(`
 				INSERT INTO schedules (
 					client_id, trainer_id, program_id, program_day_id, title,
-					start_time, end_time, status, created_at
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, 'scheduled', NOW())
+					start_time, end_time, status, session_type, created_at
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, 'scheduled', 'workout', NOW())
 				RETURNING id`,
 				clientID, program.TrainerID, childProgramID, newDayID, day.Name,
 				sTime, eTime,
@@ -751,7 +781,7 @@ func (r *programRepository) AssignProgramToClients(programID int, clientIDs []in
 								rest_duration_seconds,
 								planned_metadata,
 								completed
-							) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)`,
+							) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false)`,
 							logID, i+1, pReps, pWeight, pRpe, pDuration, pDistance, pRest, metadataJSON,
 						)
 						if err != nil {

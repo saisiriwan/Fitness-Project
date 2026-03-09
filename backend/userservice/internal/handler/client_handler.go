@@ -90,7 +90,14 @@ func (h *ClientHandler) CreateClient(c *gin.Context) {
 	}
 
 	if err := h.repo.CreateClient(&req); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create client: " + err.Error()})
+		if strings.Contains(err.Error(), "duplicate key value") ||
+			strings.Contains(err.Error(), "unique_email_per_trainer") {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "อีเมลนี้มีอยู่ในระบบแล้ว กรุณาใช้อีเมลอื่น หรือตรวจสอบรายชื่อลูกเทรนที่มีอยู่",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "เกิดข้อผิดพลาดในการบันทึกข้อมูลลูกเทรน"})
 		return
 	}
 	c.JSON(http.StatusCreated, req)

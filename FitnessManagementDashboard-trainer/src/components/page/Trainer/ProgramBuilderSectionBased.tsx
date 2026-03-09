@@ -367,6 +367,19 @@ export default function ProgramBuilderSectionBased() {
   );
 
   const location = useLocation();
+
+  // ✅ FIX: Prevent accidental data loss when editing
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isEditing) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isEditing]);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get("action") === "new-program") {
@@ -444,7 +457,9 @@ export default function ProgramBuilderSectionBased() {
           category: ex.category || "strength",
           trackingFields:
             ex.tracking_fields && ex.tracking_fields.length > 0
-              ? ex.tracking_fields.map((f: string) => f.toLowerCase())
+              ? ex.tracking_fields.map((f: string) =>
+                  normalizeTrackingFieldKey(f),
+                )
               : DEFAULT_TRACKING_FIELDS[ex.category || "strength"] ||
                 DEFAULT_TRACKING_FIELDS["strength"],
         })),
@@ -528,7 +543,9 @@ export default function ProgramBuilderSectionBased() {
                       rpm: ex.rpm,
                       rounds: ex.rounds,
                       trackingFields: ex.tracking_fields
-                        ? ex.tracking_fields.map((f: string) => f.toLowerCase())
+                        ? ex.tracking_fields.map((f: string) =>
+                            normalizeTrackingFieldKey(f),
+                          )
                         : undefined,
                     }))
                     .sort((a: any, b: any) => a.order - b.order) || [],
@@ -3085,7 +3102,7 @@ export default function ProgramBuilderSectionBased() {
                     ? exerciseData.trackingFields
                     : getFields(exerciseData);
                 const displayFields = editFields
-                  .map((f) => f.toLowerCase())
+                  .map((f) => normalizeTrackingFieldKey(f))
                   .filter((f) => f !== "sets");
 
                 return (

@@ -55,17 +55,22 @@ import {
   Edit,
   Trash2,
   MoreHorizontal,
+  SlidersHorizontal,
+  X,
 } from "lucide-react";
 
 export default function ClientsList() {
   const navigate = useNavigate();
+  const location = useLocation();
+
   const [clients, setClients] = useState<Client[]>([]);
-  const [sessions, setSessions] = useState<any[]>([]); // Using any for session for now or define minimal interface
+  const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [goalFilter, setGoalFilter] = useState("all");
+  const [showFilters, setShowFilters] = useState(false); // mobile collapsible filters
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<number | null>(null);
@@ -73,18 +78,14 @@ export default function ClientsList() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      // Only fetch clients - sessions endpoint doesn't exist
-      // Sessions are fetched per-client via /clients/:id/sessions if needed
-      // Only fetch future/recent schedules to optimize performance
-      const startDate = new Date().toISOString().split("T")[0]; // From today
+      const startDate = new Date().toISOString().split("T")[0];
       const [clientsRes, sessionsRes] = await Promise.all([
         api.get("/clients"),
         api.get(`/schedules?start_date=${startDate}`),
       ]);
-      const clientsData = clientsRes.data || [];
-      const normalizedClients = clientsData.map((client: any) => ({
-        ...client,
-        status: client.status ? client.status.toLowerCase() : "active",
+      const normalizedClients = (clientsRes.data || []).map((c: any) => ({
+        ...c,
+        status: c.status ? c.status.toLowerCase() : "active",
       }));
       setClients(normalizedClients);
       setSessions(sessionsRes.data || []);
@@ -96,14 +97,11 @@ export default function ClientsList() {
     }
   };
 
-  // Listen for query params to trigger actions (e.g. from CommandPalette)
-  const location = useLocation();
-
+  // Handle ?action=new-client from CommandPalette
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get("action") === "new-client") {
       setShowNewClientModal(true);
-      // Clean up URL without refreshing
       navigate(location.pathname, { replace: true });
     }
   }, [location, navigate]);
@@ -112,7 +110,7 @@ export default function ClientsList() {
     fetchData();
   }, []);
 
-  // Filter clients
+  /* ─── Derived data ─── */
   const filteredClients = clients.filter((client) => {
     const matchesSearch =
       client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -121,29 +119,23 @@ export default function ClientsList() {
     const matchesStatus =
       statusFilter === "all" || client.status === statusFilter;
     const matchesGoal = goalFilter === "all" || client.goal === goalFilter;
-
     return matchesSearch && matchesStatus && matchesGoal;
   });
 
-  // Calculate stats
   const activeClients = clients.filter((c) => c.status === "active").length;
   const pausedClients = clients.filter((c) => c.status === "paused").length;
   const inactiveClients = clients.filter((c) => c.status === "inactive").length;
+  const hasActiveFilter = statusFilter !== "all" || goalFilter !== "all";
 
   const getNextSession = (clientId: number) => {
-    const nextSession = sessions
-      .filter(
-        (session) =>
-          session.client_id === clientId && session.status === "scheduled",
-      )
+    const next = sessions
+      .filter((s) => s.client_id === clientId && s.status === "scheduled")
       .sort(
         (a: any, b: any) =>
           new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
       )[0];
-
-    if (!nextSession) return null;
-
-    return new Date(nextSession.start_time).toLocaleDateString("th-TH", {
+    if (!next) return null;
+    return new Date(next.start_time).toLocaleDateString("th-TH", {
       day: "numeric",
       month: "short",
       hour: "2-digit",
@@ -153,15 +145,15 @@ export default function ClientsList() {
 
   const handleNewClient = (clientId: string) => {
     setShowNewClientModal(false);
-    navigate(`/trainer/clients/${clientId}`); // Fixed path
-    fetchData(); // Refresh list
+    navigate(`/trainer/clients/${clientId}`);
+    fetchData();
   };
 
   const handleDeleteClient = async (clientId: number) => {
     try {
       await api.delete(`/clients/${clientId}`);
       toast.success("ลบลูกเทรนเรียบร้อยแล้ว");
-      fetchData(); // Refresh
+      fetchData();
     } catch (err) {
       console.error(err);
       toast.error("ลบลูกเทรนไม่สำเร็จ");
@@ -169,149 +161,270 @@ export default function ClientsList() {
   };
 
   const getStatusBadge = (status: string) => {
-    // Default to 'active' if status is missing or empty
-    const normalizedStatus = status ? status.toLowerCase() : "active";
-
-    const statusMap = {
-      active: {
-        label: "กำลังออกกำลัง",
-        variant: "default" as const,
-      },
-      paused: {
-        label: "พักชั่วคราว",
-        variant: "secondary" as const,
-      },
-      inactive: {
-        label: "เลิกเทรน",
-        variant: "outline" as const,
-      },
+    const normalized = status ? status.toLowerCase() : "active";
+    const map: Record<
+      string,
+      { label: string; variant: "default" | "secondary" | "outline" }
+    > = {
+      active: { label: "กำลังออกกำลัง", variant: "default" },
+      paused: { label: "พักชั่วคราว", variant: "secondary" },
+      inactive: { label: "เลิกเทรน", variant: "outline" },
     };
-
     return (
-      statusMap[normalizedStatus as keyof typeof statusMap] || {
-        label: status || "กำลังออกกำลัง", // Fallback text
-        variant: "default" as const, // Fallback variant
+      map[normalized] ?? {
+        label: status || "กำลังออกกำลัง",
+        variant: "default",
       }
     );
   };
 
+  /* ========================
+     LOADING — Skeleton Cards
+  ======================== */
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-900"></div>
-      </div>
+      <Card>
+        <CardHeader className="pb-4 px-4 sm:px-6">
+          {/* Skeleton header */}
+          <div className="h-10 bg-muted rounded-lg animate-pulse w-full max-w-sm" />
+        </CardHeader>
+        <CardContent className="px-4 sm:px-6 space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div
+              key={i}
+              className="h-16 bg-muted rounded-xl animate-pulse"
+              style={{ opacity: 1 - i * 0.15 }}
+            />
+          ))}
+        </CardContent>
+      </Card>
     );
   }
 
+  /* ========================
+     MAIN RENDER
+  ======================== */
   return (
     <Card>
-      {/* Clean Header */}
-      <CardHeader className="pb-4">
-        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          {/* Search */}
-          <div className="relative flex-1 w-full sm:max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+      {/* ─────────────────────────────────────────
+          HEADER
+          Mobile: Search + Filter toggle + Add btn
+          Desktop: Search | Filters inline | Stats + Add
+      ───────────────────────────────────────── */}
+      <CardHeader className="pb-3 px-4 sm:px-6">
+        {/* Row 1: Search + Filter toggle (mobile) + Add button */}
+        <div className="flex items-center gap-2">
+          {/* Search input */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
               placeholder="ค้นหาชื่อ หรือ อีเมล..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 mr-2"
+              className="pl-10 min-h-[44px]"
             />
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[140px]">
-                <SelectValue placeholder="สถานะ" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">ทั้งหมด</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="paused">Paused</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Mobile: toggle filters button */}
+          <Button
+            variant={hasActiveFilter ? "default" : "outline"}
+            size="icon"
+            className="sm:hidden min-w-[44px] min-h-[44px] flex-shrink-0"
+            onClick={() => setShowFilters(!showFilters)}
+            aria-label="Toggle filters"
+          >
+            {showFilters ? (
+              <X className="h-4 w-4" />
+            ) : (
+              <SlidersHorizontal className="h-4 w-4" />
+            )}
+          </Button>
 
-            <Select value={goalFilter} onValueChange={setGoalFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="เป้าหมาย" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">ทั้งหมด</SelectItem>
-                <SelectItem value="ลดน้ำหนัก">ลดน้ำหนัก</SelectItem>
-                <SelectItem value="เพิ่มกล้ามเนื้อ">เพิ่มกล้ามเนื้อ</SelectItem>
-                <SelectItem value="เพิ่มความแข็งแรง">
-                  เพิ่มความแข็งแรง
-                </SelectItem>
-                <SelectItem value="สุขภาพทั่วไป">สุขภาพทั่วไป</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Stats + Add Button */}
-          <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-            {/* Stats Inline */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm text-muted-foreground">Active:</span>
-                <span className="text-sm font-semibold text-green-600">
-                  {activeClients}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <span className="text-sm text-muted-foreground">Paused:</span>
-                <span className="text-sm font-semibold">{pausedClients}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                <span className="text-sm text-muted-foreground">Stop:</span>
-                <span className="text-sm font-semibold">{inactiveClients}</span>
-              </div>
-            </div>
-
-            {/* Add Button */}
-            <div className="flex gap-2">
-              <Dialog
-                open={showNewClientModal}
-                onOpenChange={setShowNewClientModal}
+          {/* Add client button */}
+          <Dialog
+            open={showNewClientModal}
+            onOpenChange={setShowNewClientModal}
+          >
+            <DialogTrigger asChild>
+              <Button
+                variant="default"
+                className="flex items-center gap-1.5 whitespace-nowrap min-h-[44px] bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0"
               >
-                <DialogTrigger asChild>
-                  <Button
-                    variant="default"
-                    className="flex items-center gap-2 whitespace-nowrap bg-navy-900 text-white hover:bg-navy-800"
-                  >
-                    <Plus className="h-4 w-4" />
-                    เพิ่มลูกเทรน
-                  </Button>
-                </DialogTrigger>
-                <DialogContent
-                  className="max-w-md"
-                  aria-describedby="new-client-manual-description"
-                >
-                  <DialogHeader>
-                    <DialogTitle>เพิ่มลูกเทรนใหม่</DialogTitle>
-                    <DialogDescription id="new-client-manual-description">
-                      กรอกข้อมูลพื้นฐาน
-                      ระบบจะแจ้งเตือนหากชื่อซ้ำกับลูกเทรนที่มีอยู่
-                    </DialogDescription>
-                  </DialogHeader>
-                  <NewClientModal
-                    onClientCreated={handleNewClient}
-                    existingClients={clients}
-                  />
-                </DialogContent>
-              </Dialog>
-            </div>
+                <Plus className="h-4 w-4" />
+                {/* Text label — full on sm+, just icon on tiny mobile */}
+                <span className="hidden xs:inline sm:inline">เพิ่มลูกเทรน</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent
+              className="w-[calc(100%-2rem)] max-w-md"
+              aria-describedby="new-client-description"
+            >
+              <DialogHeader>
+                <DialogTitle>เพิ่มลูกเทรนใหม่</DialogTitle>
+                <DialogDescription id="new-client-description">
+                  กรอกข้อมูลพื้นฐาน ระบบจะแจ้งเตือนหากชื่อซ้ำ
+                </DialogDescription>
+              </DialogHeader>
+              <NewClientModal
+                onClientCreated={handleNewClient}
+                existingClients={clients}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Row 2: Filters (always visible on sm+, collapsible on mobile) */}
+        <div
+          className={`
+            flex flex-col sm:flex-row sm:items-center gap-2 mt-2
+            ${showFilters ? "flex" : "hidden sm:flex"}
+          `}
+        >
+          {/* Status filter */}
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-[140px] min-h-[44px] sm:min-h-0">
+              <SelectValue placeholder="สถานะ" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ทั้งหมด</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="paused">Paused</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Goal filter */}
+          <Select value={goalFilter} onValueChange={setGoalFilter}>
+            <SelectTrigger className="w-full sm:w-[180px] min-h-[44px] sm:min-h-0">
+              <SelectValue placeholder="เป้าหมาย" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ทั้งหมด</SelectItem>
+              <SelectItem value="ลดน้ำหนัก">ลดน้ำหนัก</SelectItem>
+              <SelectItem value="เพิ่มกล้ามเนื้อ">เพิ่มกล้ามเนื้อ</SelectItem>
+              <SelectItem value="เพิ่มความแข็งแรง">เพิ่มความแข็งแรง</SelectItem>
+              <SelectItem value="สุขภาพทั่วไป">สุขภาพทั่วไป</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Quick stats — hidden on mobile (shown inline), full on sm+ */}
+          <div className="hidden sm:flex items-center gap-3 ml-auto flex-wrap">
+            <StatDot
+              color="bg-green-500"
+              label="Active"
+              count={activeClients}
+              textColor="text-green-600"
+            />
+            <StatDot
+              color="bg-yellow-500"
+              label="Paused"
+              count={pausedClients}
+            />
+            <StatDot color="bg-gray-400" label="Stop" count={inactiveClients} />
           </div>
+        </div>
+
+        {/* Mobile inline stats bar (compact) */}
+        <div className="flex sm:hidden items-center gap-3 mt-1.5 text-xs">
+          <span className="text-muted-foreground">รวม {clients.length} คน</span>
+          <span className="text-green-600 font-medium">
+            ● {activeClients} active
+          </span>
+          {pausedClients > 0 && (
+            <span className="text-yellow-600 font-medium">
+              ● {pausedClients} paused
+            </span>
+          )}
+          {filteredClients.length !== clients.length && (
+            <span className="text-muted-foreground ml-auto">
+              แสดง {filteredClients.length}
+            </span>
+          )}
         </div>
       </CardHeader>
 
-      {/* Clients Table */}
-      <CardContent>
-        <div className="rounded-md border">
+      {/* ─────────────────────────────────────────
+          MOBILE CARD VIEW  (< sm = 640px)
+          Stacked tappable cards, 44px min touch targets
+      ───────────────────────────────────────── */}
+      <CardContent className="sm:hidden px-3 pb-4">
+        {filteredClients.length === 0 ? (
+          <EmptyState hasFilter={!!searchTerm || hasActiveFilter} />
+        ) : (
+          <div className="space-y-2.5">
+            {filteredClients.map((client) => {
+              const nextSession = getNextSession(client.id);
+              const statusBadge = getStatusBadge(client.status);
+              return (
+                <div
+                  key={client.id}
+                  className="bg-muted/30 border rounded-xl overflow-hidden"
+                >
+                  {/* Tap area → profile */}
+                  <Link
+                    to={`/trainer/clients/${client.id}`}
+                    className="flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors"
+                  >
+                    <Avatar className="h-11 w-11 flex-shrink-0">
+                      <AvatarImage src={client.avatar_url} alt={client.name} />
+                      <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+                        {client.name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm truncate">
+                        {client.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {client.email}
+                      </p>
+                    </div>
+                    {/* Status badge inline on far right */}
+                    <Badge
+                      variant={statusBadge.variant}
+                      className="text-[10px] px-1.5 flex-shrink-0"
+                    >
+                      {statusBadge.label}
+                    </Badge>
+                  </Link>
+
+                  {/* Bottom row: goal + next session + action */}
+                  <div className="flex items-center gap-2 px-3 pb-2.5 pt-0">
+                    <Badge variant="outline" className="text-[10px] px-1.5">
+                      {client.goal || "—"}
+                    </Badge>
+                    {nextSession ? (
+                      <div className="flex items-center gap-1 text-[10px] text-orange-600 ml-1 flex-1 min-w-0">
+                        <Calendar className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{nextSession}</span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground ml-1 flex-1">
+                        ไม่มีนัด
+                      </span>
+                    )}
+                    {/* Action menu — 44px touch target */}
+                    <ClientActionMenu
+                      clientId={client.id}
+                      onDelete={() => {
+                        setClientToDelete(client.id);
+                        setDeleteDialogOpen(true);
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+
+      {/* ─────────────────────────────────────────
+          DESKTOP TABLE VIEW  (>= sm = 640px)
+          Full table with overflow scroll wrapper
+      ───────────────────────────────────────── */}
+      <CardContent className="hidden sm:block px-4 sm:px-6">
+        <div className="table-responsive rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -319,6 +432,7 @@ export default function ClientsList() {
                 <TableHead>เป้าหมาย</TableHead>
                 <TableHead>สถานะ</TableHead>
                 <TableHead>นัดถัดไป</TableHead>
+                <TableHead className="text-right w-[60px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -326,57 +440,65 @@ export default function ClientsList() {
                 <TableRow>
                   <TableCell
                     colSpan={5}
-                    className="text-center py-8 text-muted-foreground"
+                    className="text-center py-10 text-muted-foreground"
                   >
-                    {searchTerm ||
-                    statusFilter !== "all" ||
-                    goalFilter !== "all"
-                      ? "ไม่พบข้อมูลที่ค้นหา"
-                      : 'ยังไม่มีลูกเทรน คลิก "เพิ่มลูกเทรน" เพื่อเริ่มต้น'}
+                    <EmptyState
+                      hasFilter={!!searchTerm || hasActiveFilter}
+                      inline
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredClients.map((client) => {
                   const nextSession = getNextSession(client.id);
                   const statusBadge = getStatusBadge(client.status);
-
                   return (
                     <TableRow key={client.id} className="hover:bg-muted/50">
+                      {/* Name + email + avatar */}
                       <TableCell>
                         <Link
                           to={`/trainer/clients/${client.id}`}
-                          className="flex items-center gap-3 hover:text-primary transition-colors"
+                          className="flex items-center gap-3 hover:text-primary transition-colors group"
                         >
-                          <Avatar className="h-10 w-10">
-                            {/* Assuming API might not return avatar yet, or define fallback */}
+                          <Avatar className="h-10 w-10 flex-shrink-0">
                             <AvatarImage
                               src={client.avatar_url}
                               alt={client.name}
                             />
-                            <AvatarFallback>
+                            <AvatarFallback className="text-sm">
                               {client.name.charAt(0)}
                             </AvatarFallback>
                           </Avatar>
-                          <div>
-                            <p className="font-medium">{client.name}</p>
-                            <p className="text-sm text-muted-foreground">
+                          <div className="min-w-0">
+                            <p className="font-medium group-hover:underline">
+                              {client.name}
+                            </p>
+                            <p className="text-sm text-muted-foreground truncate max-w-[200px]">
                               {client.email}
                             </p>
                           </div>
                         </Link>
                       </TableCell>
+
+                      {/* Goal */}
                       <TableCell>
-                        <Badge variant="outline">{client.goal}</Badge>
+                        <Badge variant="outline" className="whitespace-nowrap">
+                          {client.goal}
+                        </Badge>
                       </TableCell>
+
+                      {/* Status */}
                       <TableCell>
                         <Badge variant={statusBadge.variant}>
                           {statusBadge.label}
                         </Badge>
                       </TableCell>
+
+                      {/* Next session */}
                       <TableCell>
                         {nextSession ? (
-                          <div className="flex items-center gap-1 text-sm text-orange-600">
-                            <Calendar className="h-4 w-4" />
+                          <div className="flex items-center gap-1.5 text-sm text-orange-600">
+                            <Calendar className="h-4 w-4 flex-shrink-0" />
                             {nextSession}
                           </div>
                         ) : (
@@ -385,40 +507,16 @@ export default function ClientsList() {
                           </span>
                         )}
                       </TableCell>
+
+                      {/* Actions */}
                       <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link to={`/trainer/clients/${client.id}`}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                แก้ไขข้อมูล
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link
-                                to={`/trainer/calendar?client=${client.id}`}
-                              >
-                                <Calendar className="mr-2 h-4 w-4" />
-                                จัดตารางเวลา
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600"
-                              onSelect={() => {
-                                setClientToDelete(client.id);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              ลบลูกเทรน
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <ClientActionMenu
+                          clientId={client.id}
+                          onDelete={() => {
+                            setClientToDelete(client.id);
+                            setDeleteDialogOpen(true);
+                          }}
+                        />
                       </TableCell>
                     </TableRow>
                   );
@@ -429,20 +527,28 @@ export default function ClientsList() {
         </div>
       </CardContent>
 
-      {/* Delete Confirmation Dialog */}
+      {/* ─────────────────────────────────────────
+          Delete Confirmation Dialog
+          Mobile-safe width
+      ───────────────────────────────────────── */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent aria-describedby="delete-client-alert-description">
+        <AlertDialogContent
+          className="w-[calc(100%-2rem)] max-w-sm sm:max-w-md"
+          aria-describedby="delete-client-description"
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>ยืนยันการลบ</AlertDialogTitle>
-            <AlertDialogDescription id="delete-client-alert-description">
+            <AlertDialogDescription id="delete-client-description">
               คุณแน่ใจหรือไม่ว่าต้องการลบ "
-              {clients.find((c) => c.id === clientToDelete)?.name ||
+              {clients.find((c) => c.id === clientToDelete)?.name ??
                 "ลูกเทรนคนนี้"}
               "? การดำเนินการนี้ไม่สามารถยกเลิกได้
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <AlertDialogCancel className="min-h-[44px] sm:min-h-0">
+              ยกเลิก
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (clientToDelete) {
@@ -450,7 +556,7 @@ export default function ClientsList() {
                   setClientToDelete(null);
                 }
               }}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-red-600 hover:bg-red-700 text-white min-h-[44px] sm:min-h-0"
             >
               ลบ
             </AlertDialogAction>
@@ -458,5 +564,107 @@ export default function ClientsList() {
         </AlertDialogContent>
       </AlertDialog>
     </Card>
+  );
+}
+
+/* ─────────────────────────────────────────
+   Sub-components (co-located for clarity)
+───────────────────────────────────────── */
+
+/** Small inline stat dot with label and count */
+function StatDot({
+  color,
+  label,
+  count,
+  textColor = "text-foreground",
+}: {
+  color: string;
+  label: string;
+  count: number;
+  textColor?: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 text-sm">
+      <div className={`w-2 h-2 rounded-full ${color}`} />
+      <span className="text-muted-foreground">{label}:</span>
+      <span className={`font-semibold ${textColor}`}>{count}</span>
+    </div>
+  );
+}
+
+/** Reusable action menu for a client row */
+function ClientActionMenu({
+  clientId,
+  onDelete,
+}: {
+  clientId: number;
+  onDelete: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="min-h-[44px] min-w-[44px]"
+          aria-label="เมนูตัวเลือก"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuItem asChild>
+          <Link
+            to={`/trainer/clients/${clientId}`}
+            className="flex items-center"
+          >
+            <Edit className="mr-2 h-4 w-4" />
+            แก้ไขข้อมูล
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link
+            to={`/trainer/calendar?client=${clientId}`}
+            className="flex items-center"
+          >
+            <Calendar className="mr-2 h-4 w-4" />
+            จัดตารางเวลา
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950"
+          onSelect={onDelete}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          ลบลูกเทรน
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Empty state display */
+function EmptyState({
+  hasFilter,
+  inline = false,
+}: {
+  hasFilter: boolean;
+  inline?: boolean;
+}) {
+  if (inline) {
+    return (
+      <span>
+        {hasFilter
+          ? "ไม่พบข้อมูลที่ค้นหา"
+          : 'ยังไม่มีลูกเทรน คลิก "เพิ่มลูกเทรน" เพื่อเริ่มต้น'}
+      </span>
+    );
+  }
+  return (
+    <div className="text-center py-10 text-muted-foreground text-sm px-4">
+      {hasFilter
+        ? "ไม่พบข้อมูลที่ค้นหา ลองเปลี่ยนคำค้นหาหรือ filter"
+        : 'ยังไม่มีลูกเทรน กด "เพิ่มลูกเทรน" เพื่อเริ่มต้น'}
+    </div>
   );
 }

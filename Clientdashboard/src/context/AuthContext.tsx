@@ -38,6 +38,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
+  // Bug 3b fix: listen for 401 event dispatched by api.ts interceptor
+  useEffect(() => {
+    const handleUnauthorized = () => setUser(null);
+    window.addEventListener("auth:unauthorized", handleUnauthorized);
+    return () =>
+      window.removeEventListener("auth:unauthorized", handleUnauthorized);
+  }, []);
+
   const login = async (credentials: { email: string; password: string }) => {
     await authService.login(credentials);
     await checkAuth(); // Refresh user data after login

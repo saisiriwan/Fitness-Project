@@ -477,7 +477,8 @@ export const clientService = {
     const response = await api.get(`/client-metrics`, {
       params: { client_id: clientId, type }
     });
-    return response.data;
+    // Bug 2 fix: unwrap .data.data (array) — API returns { success, data: [...] }
+    return response.data.data || response.data;
   },
 
   /**

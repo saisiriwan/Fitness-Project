@@ -5,6 +5,8 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    volumes:
+      - uploads_data:/app/uploads
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s
@@ -12,3 +14,6 @@ services:
       retries: 3
       start_period: 5s
     restart: unless-stopped  # จะ Restart Container อัตโนมัติถ้า Health Check ไม่ผ่าน
+
+volumes:
+  uploads_data:

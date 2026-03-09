@@ -63,7 +63,7 @@ import { Switch } from "@/components/ui/switch";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api from "@/lib/api";
-import { toRFC3339String } from "@/lib/utils";
+import { toRFC3339String, parseLocalTimestamp } from "@/lib/utils";
 import {
   DEFAULT_TRACKING_FIELDS,
   normalizeTrackingFieldKey,
@@ -136,6 +136,7 @@ interface Session {
   start_time: string;
   end_time: string;
   status: string;
+  updated_at?: string;
 }
 
 export default function ClientSchedule({ client }: ClientScheduleProps) {
@@ -143,7 +144,7 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("date-desc");
+  const [sortBy, setSortBy] = useState("updated-desc");
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
   const [sessionToReschedule, setSessionToReschedule] =
     useState<Session | null>(null);
@@ -228,6 +229,16 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
     );
   }
   filteredSessions = [...filteredSessions].sort((a, b) => {
+    if (sortBy === "updated-desc") {
+      const upA = new Date(a.updated_at || a.start_time).getTime();
+      const upB = new Date(b.updated_at || b.start_time).getTime();
+      return upB - upA;
+    }
+    if (sortBy === "updated-asc") {
+      const upA = new Date(a.updated_at || a.start_time).getTime();
+      const upB = new Date(b.updated_at || b.start_time).getTime();
+      return upA - upB;
+    }
     const dateA = new Date(a.start_time).getTime();
     const dateB = new Date(b.start_time).getTime();
     return sortBy === "date-asc" ? dateA - dateB : dateB - dateA;
@@ -502,22 +513,22 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
               rest_duration_seconds: parseTimeToSeconds(set.rest) || 60,
               planned_metadata: {
                 // Text / time fields
-                tempo:          set.tempo     || "",
-                hold_time:      set.hold_time || "",
-                side:           set.side      || "",
-                pace:           set.pace      || "",
+                tempo: set.tempo || "",
+                hold_time: set.hold_time || "",
+                side: set.side || "",
+                pace: set.pace || "",
                 // ✅ FIX: Advanced numeric fields
-                speed:          parseFloat(set.speed)          || 0,
-                cadence:        parseFloat(set.cadence)        || 0,
-                distance_long:  parseFloat(set.distance_long)  || 0,
+                speed: parseFloat(set.speed) || 0,
+                cadence: parseFloat(set.cadence) || 0,
+                distance_long: parseFloat(set.distance_long) || 0,
                 distance_short: parseFloat(set.distance_short) || 0,
-                one_rm:         parseFloat(set.one_rm)         || 0,
-                rir:            parseFloat(set.rir)            || 0,
-                heart_rate:     parseFloat(set.heart_rate)     || 0,
-                hr_zone:        parseFloat(set.hr_zone)        || 0,
-                watts:          parseFloat(set.watts)          || 0,
-                rpm:            parseFloat(set.rpm)            || 0,
-                rounds:         parseFloat(set.rounds)         || 0,
+                one_rm: parseFloat(set.one_rm) || 0,
+                rir: parseFloat(set.rir) || 0,
+                heart_rate: parseFloat(set.heart_rate) || 0,
+                hr_zone: parseFloat(set.hr_zone) || 0,
+                watts: parseFloat(set.watts) || 0,
+                rpm: parseFloat(set.rpm) || 0,
+                rounds: parseFloat(set.rounds) || 0,
               },
               notes: set.notes || "",
               completed: false,
@@ -687,6 +698,9 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
               <SelectValue placeholder="เรียงตาม" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="updated-desc">
+                อัปเดตล่าสุด - เก่าสุด
+              </SelectItem>
               <SelectItem value="date-desc">วันที่ใหม่ - เก่า</SelectItem>
               <SelectItem value="date-asc">วันที่เก่า - ใหม่</SelectItem>
             </SelectContent>
@@ -1198,7 +1212,11 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                                           size="icon"
                                           className="h-5 w-5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                                           onClick={() =>
-                                            handleRemoveSet(secIdx, exIdx, setIdx)
+                                            handleRemoveSet(
+                                              secIdx,
+                                              exIdx,
+                                              setIdx,
+                                            )
                                           }
                                         >
                                           <X className="h-3 w-3" />
@@ -1209,8 +1227,12 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                                           let config = FIELD_CONFIG[fieldName];
                                           if (!config) {
                                             const normalized =
-                                              normalizeTrackingFieldKey(fieldName);
-                                            config = FIELD_CONFIG[normalized] || {
+                                              normalizeTrackingFieldKey(
+                                                fieldName,
+                                              );
+                                            config = FIELD_CONFIG[
+                                              normalized
+                                            ] || {
                                               label: fieldName,
                                               placeholder: "-",
                                               type: "text",
@@ -1232,7 +1254,9 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                                                 className="col-span-2 sm:col-span-4"
                                               >
                                                 <Input
-                                                  placeholder={config.placeholder}
+                                                  placeholder={
+                                                    config.placeholder
+                                                  }
                                                   className="h-8 text-xs border-dashed bg-slate-50 focus:bg-white"
                                                   value={set[fieldName] || ""}
                                                   onChange={(e) => {
@@ -1243,7 +1267,9 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                                                       exIdx
                                                     ].sets[setIdx][fieldName] =
                                                       e.target.value;
-                                                    setNewSessionSections(updated);
+                                                    setNewSessionSections(
+                                                      updated,
+                                                    );
                                                   }}
                                                 />
                                               </div>
@@ -1251,7 +1277,10 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                                           }
 
                                           return (
-                                            <div key={fieldName} className="space-y-1">
+                                            <div
+                                              key={fieldName}
+                                              className="space-y-1"
+                                            >
                                               <span className="text-[10px] text-muted-foreground font-medium uppercase ml-1">
                                                 {config.label}
                                               </span>
@@ -1277,8 +1306,11 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                                                   ];
                                                   updated[secIdx].exercises[
                                                     exIdx
-                                                  ].sets[setIdx][fieldName] = val;
-                                                  setNewSessionSections(updated);
+                                                  ].sets[setIdx][fieldName] =
+                                                    val;
+                                                  setNewSessionSections(
+                                                    updated,
+                                                  );
                                                 }}
                                               />
                                             </div>
@@ -1294,7 +1326,8 @@ export default function ClientSchedule({ client }: ClientScheduleProps) {
                                     className="w-full h-8 text-xs font-medium text-slate-500 hover:text-navy-900 hover:bg-slate-200/50 mt-1 bg-slate-100/50 border border-dashed border-slate-200"
                                     onClick={() => handleAddSet(secIdx, exIdx)}
                                   >
-                                    <Plus className="h-3.5 w-3.5 mr-1" /> เพิ่ม Set
+                                    <Plus className="h-3.5 w-3.5 mr-1" /> เพิ่ม
+                                    Set
                                   </Button>
                                 </div>
                                 {/* ===== End Set Layout ===== */}

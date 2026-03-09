@@ -341,7 +341,8 @@ func (h *UserHandler) Login(c *gin.Context) {
 	}
 
 	// ตั้งค่า httpOnly Cookie (จากเอกสาร Auth Part 1)
-	c.SetCookie("access_token", accessToken, 86400, "/", "", false, true) // httpOnly=true, domain="" for localhost
+	cookieDomain := os.Getenv("COOKIE_DOMAIN")
+	c.SetCookie("access_token", accessToken, 86400, "/", cookieDomain, false, true)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Login successful"})
 }
@@ -355,32 +356,35 @@ func (h *UserHandler) Logout(c *gin.Context) {
 // (Logic ให้ GoogleLogin)
 func (h *UserHandler) GoogleLogin(c *gin.Context) {
 	ensureConfigInit()
-	// รับ role จาก Frontend (ถ้าไม่ส่งมา default = trainee)
+
+	// Clone config to modify redirect URL if necessary
+	conf := *googleOauthConfig
+	// 💥 [CRITICAL FIX] บังคับให้เป็น localhost เสมอ เพื่อให้ Google Cloud ยอมรับ
+	conf.RedirectURL = "http://localhost:8080/auth/google/callback"
+
 	role := c.Query("role")
 	if role == "" {
 		role = "trainee"
 	}
-
-	// สร้าง State string (แบบง่ายๆ: "randomString|role")
-	// ใน production ควรใช้ random token จริงๆ เพื่อกัน CSRF
 	state := "random-state-string-for-csrf-protection|" + role
-
-	url := googleOauthConfig.AuthCodeURL(state)
-
-	// สั่ง Redirect (เด้ง) เบราว์เซอร์ของผู้ใช้ไปหน้า Login ของ Google
+	url := conf.AuthCodeURL(state)
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
 // (Logic ให้ GoogleCallback)
 func (h *UserHandler) GoogleCallback(c *gin.Context) {
 	ensureConfigInit()
-	// 1. รับ "code" ที่ Google ส่งกลับมา
+
+	// Clone config to match the redirect URL used in GoogleLogin
+	conf := *googleOauthConfig
+	conf.RedirectURL = "http://localhost:8080/auth/google/callback"
+
 	code := c.Query("code")
 
 	// 2. นำ "code" ไปแลกเป็น "Google Token"
-	token, err := googleOauthConfig.Exchange(context.Background(), code)
+	token, err := conf.Exchange(context.Background(), code)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to exchange token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to exchange token: " + err.Error()})
 		return
 	}
 
@@ -469,18 +473,31 @@ func (h *UserHandler) GoogleCallback(c *gin.Context) {
 	}
 
 	// 6. ตั้งค่า httpOnly Cookie
-	// Note: You might want to make the domain dynamic in production
-	c.SetCookie("access_token", accessToken, 86400, "/", "", false, true)
+	cookieDomain := os.Getenv("COOKIE_DOMAIN")
+	c.SetCookie("access_token", accessToken, 86400, "/", cookieDomain, false, true)
 
 	// 7. (สำคัญ) Redirect กลับไปหน้า Frontend ตาม Role ที่ User เลือกล็อกอินเข้ามา (Target Role)
 	// เพื่อให้สามารถเข้าใช้งานได้ทั้งสองฝั่ง (Trainer/Client) โดยไม่ถูก Force Redirect
-	redirectURL := "http://localhost:5173" // Default Client Dashboard
+	baseIP := "localhost"
+	if strings.Contains(c.Request.Host, "10.0.2.2") {
+		baseIP = "10.0.2.2"
+	}
+
+	clientURL := os.Getenv("FRONTEND_CLIENT_URL")
+	if clientURL == "" {
+		clientURL = fmt.Sprintf("http://%s:5173", baseIP) // Default Client Dashboard
+	}
+
+	trainerURL := os.Getenv("FRONTEND_TRAINER_URL")
+	if trainerURL == "" {
+		trainerURL = fmt.Sprintf("http://%s:3000/dashboard", baseIP)
+	}
+
+	redirectURL := clientURL
 
 	// ใช้ targetRole (จาก state param) เป็นตัวตัดสินว่าจะส่งกลับไป port ไหน
 	if targetRole == "trainer" {
-		redirectURL = "http://localhost:3000/dashboard"
-	} else {
-		redirectURL = "http://localhost:5173"
+		redirectURL = trainerURL
 	}
 
 	c.Redirect(http.StatusTemporaryRedirect, redirectURL)

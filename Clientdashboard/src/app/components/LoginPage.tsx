@@ -13,6 +13,7 @@ interface LoginPageProps {
 }
 
 import { useAuth } from "@/context/AuthContext";
+import { getApiBaseUrl } from "@/lib/api";
 
 export function LoginPage({ onLogin }: LoginPageProps) {
   // onLogin prop might become redundant if App listens to auth state
@@ -63,8 +64,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const handleGoogleLogin = () => {
     // Set a cookie to indicate the expected role for redirect
     document.cookie = "login_role=trainee; path=/; max-age=300"; // 5 min expiry
-    window.location.href =
-      "http://localhost:8080/api/v1/auth/google/login?role=trainee";
+    const baseUrl = getApiBaseUrl();
+    window.location.href = `${baseUrl}/auth/google/login?role=trainee`;
   };
 
   const handleGuestAccess = () => {

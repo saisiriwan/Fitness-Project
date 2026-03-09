@@ -8,6 +8,7 @@ import fitnessLogo from "@/assets/fitness-logo.png";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/components/page/Trainer/AuthContext";
+import { getApiBaseUrl } from "@/lib/api";
 
 const SignIn = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -63,8 +64,11 @@ const SignIn = () => {
      ใช้สำหรับ: ปุ่ม "Sign in with Google"
      หน้าที่: redirect ไปหน้า Google OAuth (backend จัดการ callback) */
   const handleGoogleLogin = () => {
-    // ใช้ baseURL จาก api config เพื่อไม่ต้อง hardcode
-    const baseURL = api.defaults.baseURL || "http://localhost:8080/api/v1";
+    // 💥 [CRITICAL FIX FOR ANDROID EMULATOR] 💥
+    // บังคับให้หน้าจอ Login ของ Google เปิดผ่าน "localhost" หรือ 10.0.2.2 แบบไดนามิก!
+    // เพราะ Google Cloud Console ยอมรับตามสภาพแวดล้อม
+    const baseURL = getApiBaseUrl();
+
     // redirect ไปยัง backend route ที่จัดการ Google OAuth + ส่ง role=trainer
     window.location.href = `${baseURL}/auth/google/login?role=trainer`;
   };

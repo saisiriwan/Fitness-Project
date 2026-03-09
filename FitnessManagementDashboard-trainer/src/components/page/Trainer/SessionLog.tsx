@@ -352,7 +352,9 @@ export default function SessionLog() {
           completed: false,
           sectionName: log.section_name,
           sectionOrder: log.section_order,
-          trackingFields: log.tracking_fields || [],
+          trackingFields: (log.tracking_fields || []).map((f: string) =>
+            normalizeTrackingFieldKey(f),
+          ),
 
           sets: (log.sets || []).map((s: any, setIdx: number) => {
             /* Helper: pickVal — รับ Array/comma-string แล้วแตก index (สำหรับค่า per-set) */
